@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DWIS.RigOS.Capabilities.ModelShared" Version="1.0.30" />
+    <PackageReference Include="OSDC.DotnetLibraries.Drilling.DrillingProperties" Version="10.2.2-build.44" />
+  </ItemGroup>
+
+</Project>
