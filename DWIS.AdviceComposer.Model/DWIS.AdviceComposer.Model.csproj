@@ -7,8 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="DWIS.RigOS.Capabilities.ModelShared" Version="1.0.30" />
-    <PackageReference Include="OSDC.DotnetLibraries.Drilling.DrillingProperties" Version="10.2.2-build.44" />
+    <PackageReference Include="DWIS.RigOS.Capabilities.Controller.Model" Version="1.0.4-build.2" />
+    <PackageReference Include="OSDC.DotnetLibraries.Drilling.DrillingProperties" Version="10.2.2-build.46" />
   </ItemGroup>
 
 </Project>

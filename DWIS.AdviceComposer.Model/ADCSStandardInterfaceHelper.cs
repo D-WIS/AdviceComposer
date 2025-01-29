@@ -11,7 +11,7 @@ namespace DWIS.AdviceComposer.Model
     [SemanticFact("ADCSStandardFunction#01", Nouns.Enum.ActivableFunction)]
     [SemanticFact("ADCSStandardFunction#01", Verbs.Enum.HasValue, "ADCSStandardFunction")]
     [SemanticFact("DWISADCSCapabilityDescriptor", Nouns.Enum.DWISADCSCapabilityDescriptor)]
-    [SemanticFact("ADCSStandardAutoDriller#01", Verbs.Enum.IsProvidedBy, "DWISADCSCapabilityDescriptor")]
+    [SemanticFact("ADCSStandardFunction#01", Verbs.Enum.IsProvidedBy, "DWISADCSCapabilityDescriptor")]
     public class ADCSStandardInterfaceHelper
     {
         public string? SparQLQuery { get; set; } = null;

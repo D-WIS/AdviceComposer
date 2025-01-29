@@ -2,14 +2,11 @@ using DWIS.Client.ReferenceImplementation;
 using DWIS.Client.ReferenceImplementation.OPCFoundation;
 using System.Text.Json;
 using DWIS.API.DTO;
-using OSDC.DotnetLibraries.Drilling.DrillingProperties;
-using System.Reflection;
 using DWIS.AdviceComposer.Model;
-using OSDC.DotnetLibraries.General.Common;
-using System.Threading;
-using DWIS.RigOS.Capabilities.ModelShared;
+using DWIS.RigOS.Common.Model;
+using DWIS.RigOS.Capabilities.Controller.Model;
 using Newtonsoft.Json;
-using System.Text.Json.Serialization;
+
 
 namespace DWIS.AdviceComposer.Service
 {
@@ -131,7 +128,7 @@ namespace DWIS.AdviceComposer.Service
             bool ok = false;
             if (DWISClient != null && readable != null && readable.Manifest != null && !string.IsNullOrEmpty(readable.SparQLQuery) && readable.SparQLVariables != null && readable.SparQLVariables.Count > 0)
             {
-                DWIS.RigOS.Capabilities.ModelShared.ManifestFile manifestFile = readable.Manifest;
+                ManifestFile manifestFile = readable.Manifest;
                 string sparQLQuery = readable.SparQLQuery;
                 List<string>? variables = readable.SparQLVariables.ToList<string>();
                 QueryResult? res = null;
@@ -255,7 +252,12 @@ namespace DWIS.AdviceComposer.Service
                                     {
                                         try
                                         {
-                                            ActivableFunction? ADCSFunctionCapability = System.Text.Json.JsonSerializer.Deserialize<ActivableFunction>(json);
+                                            var settings = new JsonSerializerSettings
+                                            {
+                                                TypeNameHandling = TypeNameHandling.Objects,
+                                                Formatting = Formatting.Indented
+                                            };
+                                            ActivableFunction? ADCSFunctionCapability = Newtonsoft.Json.JsonConvert.DeserializeObject<ActivableFunction>(json, settings);
                                             if (ADCSFunctionCapability != null && !string.IsNullOrEmpty(ADCSFunctionCapability.Name))
                                             {
                                                 bool found = false;
@@ -287,11 +289,56 @@ namespace DWIS.AdviceComposer.Service
                                                         }
                                                     }
                                                 }
+                                                if (ADCSFunctionCapability is ControllerFunction controllerFunction)
+                                                {
+                                                    if (controllerFunction.Controllers != null)
+                                                    {
+                                                        foreach (Controller controller in controllerFunction.Controllers)
+                                                        {
+                                                            if (controller != null)
+                                                            {
+                                                                if (controller is ControllerWithOnlyLimits controllerWithOnlyLimits)
+                                                                {
+                                                                    if (controllerWithOnlyLimits.ControllerLimits != null)
+                                                                    {
+                                                                        foreach (var kpv in controllerWithOnlyLimits.ControllerLimits)
+                                                                        {
+                                                                            if (kpv.Value != null)
+                                                                            {
+
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                                else if (controller is ControllerWithControlledVariable controllerWithControlledVariable)
+                                                                {
+                                                                    if (controllerWithControlledVariable.ControlledVariableReference != null)
+                                                                    {
+
+                                                                    }
+                                                                    if (controller is ControllerWithLimits controllerWithLimits)
+                                                                    {
+                                                                        if (controllerWithLimits.ControllerLimits != null)
+                                                                        {
+                                                                            foreach (var kpv in controllerWithLimits.ControllerLimits)
+                                                                            {
+                                                                                if (kpv.Value != null)
+                                                                                {
+
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                         catch (Exception e)
                                         {
-
+                                            _logger?.LogError(e.ToString());
                                         }
                                     }
                                 }
