@@ -4,17 +4,14 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UserSecretsId>dotnet-DWIS.AdviceComposer.Service-6ee9c22b-66b2-4066-8dec-1a0d539bb321</UserSecretsId>
+    <UserSecretsId>dotnet-DWIS.AdviceComposer.ROPAdvisorWithCuttingsTransportFeature.Test-721475ee-9a2d-4475-be11-7b5ad6321bab</UserSecretsId>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="DWIS.Client.ReferenceImplementation.OPCFoundation" Version="2.1.17" />
+    <PackageReference Include="DWIS.RigOS.Capabilities.Controller.Model" Version="1.0.4-build.3" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\DWIS.AdviceComposer.Model\DWIS.AdviceComposer.Model.csproj" />
   </ItemGroup>
 </Project>
