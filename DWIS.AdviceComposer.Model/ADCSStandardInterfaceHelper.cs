@@ -1,5 +1,4 @@
-﻿using DWIS.API.DTO;
-using DWIS.Vocabulary.Schemas;
+﻿using DWIS.Vocabulary.Schemas;
 using OSDC.DotnetLibraries.Drilling.DrillingProperties;
 using System.Reflection;
 

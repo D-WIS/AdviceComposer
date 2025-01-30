@@ -18,6 +18,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DWIS.AdviceComposer.ROPAdvi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DWIS.AdviceComposer.ROPAdvisorWithRigActionPlanFeature.Test", "DWIS.AdviceComposer.ROPAdvisorWithRigActionPlanFeature.Test\DWIS.AdviceComposer.ROPAdvisorWithRigActionPlanFeature.Test.csproj", "{F6935056-72DA-4C00-96B1-43DEABAE8B4B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DWIS.AdviceComposer.SchedulerROPContext.Test", "DWIS.AdviceComposer.SchedulerROPContext.Test\DWIS.AdviceComposer.SchedulerROPContext.Test.csproj", "{122CE879-7848-430B-B553-9B2D44806378}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -44,6 +46,10 @@ Global
 		{F6935056-72DA-4C00-96B1-43DEABAE8B4B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F6935056-72DA-4C00-96B1-43DEABAE8B4B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F6935056-72DA-4C00-96B1-43DEABAE8B4B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{122CE879-7848-430B-B553-9B2D44806378}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{122CE879-7848-430B-B553-9B2D44806378}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{122CE879-7848-430B-B553-9B2D44806378}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{122CE879-7848-430B-B553-9B2D44806378}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -168,6 +168,7 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
                                             items.Add(new DWIS.API.DTO.NodeIdentifier() { ID = kvp.InjectedID.ID, NameSpace = ns });
                                         }
                                         placeHolder.Add(row);
+                                        ok = true;
                                     }
                                 }
                             }

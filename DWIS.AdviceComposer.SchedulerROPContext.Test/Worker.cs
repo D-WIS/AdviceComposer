@@ -1,14 +1,15 @@
-using DWIS.Client.ReferenceImplementation;
-using DWIS.Client.ReferenceImplementation.OPCFoundation;
-using System.Text.Json;
 using DWIS.API.DTO;
-using DWIS.AdviceComposer.Model;
-using DWIS.RigOS.Common.Model;
+using DWIS.Client.ReferenceImplementation.OPCFoundation;
+using DWIS.Client.ReferenceImplementation;
 using DWIS.RigOS.Capabilities.Controller.Model;
+using DWIS.RigOS.Common.Model;
 using Newtonsoft.Json;
+using OSDC.DotnetLibraries.Drilling.DrillingProperties;
+using System.Reflection;
+using DWIS.Scheduler.Model;
+using DWIS.Vocabulary.Schemas;
 
-
-namespace DWIS.AdviceComposer.Service
+namespace DWIS.AdviceComposer.SchedulerROPContext.Test
 {
     public class Worker : BackgroundService
     {
@@ -16,19 +17,19 @@ namespace DWIS.AdviceComposer.Service
         private ILogger<Worker>? _logger;
         private IOPCUADWISClient? _DWISClient = null;
         private TimeSpan _loopSpan;
-        private Model.AdviceComposer _adviceComposer = new Model.AdviceComposer();
- 
+
         private Configuration Configuration { get; set; } = new Configuration();
 
-        private QueryResult? EnablePlaceHolder { get; set; } = null;
+        private QueryResult? _contextPlaceHolder = null;
 
         private Dictionary<string, (string sparql, string key)> registeredQueriesSparqls_ = new Dictionary<string, (string sparql, string key)>();
 
         private List<AcquiredSignals> placeHolders_ = new List<AcquiredSignals>();
 
         private static string _ADCSStandardInterfaceSubscriptionName = "ADCSStandardInterfaceSubscription";
-        private static string _prefix = "DWIS:AdviceComposer:";
-        private static string _companyName = "DWIS";
+        private static string _manifestName = "manifest for DWIS Scheduler Test for ROP Management Context";
+        private static string _prefix = "DWIS:Scheduler:ROPManagementContext:Test";
+        private static string _companyName = "NORCE";
 
         public Worker(ILogger<Worker>? logger, ILogger<DWISClientOPCF>? loggerDWISClient)
         {
@@ -123,14 +124,14 @@ namespace DWIS.AdviceComposer.Service
             }
         }
 
-        private bool RegisterToBlackboard(TokenizedAssignableReferenceBooleanValue? readable, IOPCUADWISClient? DWISClient, ref QueryResult? placeHolder) 
+        private bool RegisterToBlackboard(SemanticInfo? semanticInfo, IOPCUADWISClient? DWISClient, ref QueryResult? placeHolder)
         {
             bool ok = false;
-            if (DWISClient != null && readable != null && readable.Manifest != null && !string.IsNullOrEmpty(readable.SparQLQuery) && readable.SparQLVariables != null && readable.SparQLVariables.Count > 0)
+            if (DWISClient != null && semanticInfo != null && semanticInfo.Manifest != null && !string.IsNullOrEmpty(semanticInfo.SparQLQuery) && semanticInfo.SparQLVariables != null && semanticInfo.SparQLVariables.Count > 0)
             {
-                ManifestFile manifestFile = readable.Manifest;
-                string sparQLQuery = readable.SparQLQuery;
-                List<string>? variables = readable.SparQLVariables.ToList<string>();
+                ManifestFile manifestFile = semanticInfo.Manifest;
+                string sparQLQuery = semanticInfo.SparQLQuery;
+                List<string>? variables = semanticInfo.SparQLVariables.ToList<string>();
                 QueryResult? res = null;
                 var result = DWISClient.GetQueryResult(sparQLQuery);
                 if (result != null && result.Results != null && result.Results.Count > 0)
@@ -184,21 +185,24 @@ namespace DWIS.AdviceComposer.Service
         protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
             ConnectToBlackboard();
-
             if (_DWISClient != null && _DWISClient.Connected)
             {
-                ADCSStandardInterfaceHelper standardInterfaceHelper = new ADCSStandardInterfaceHelper();
-                if (_DWISClient != null && _DWISClient.Connected && standardInterfaceHelper != null && !string.IsNullOrEmpty(standardInterfaceHelper.SparQLQuery))
+                Assembly? assembly = Assembly.GetAssembly(typeof(ADCSStandardInterfaceHelper));
+                var queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardInterfaceHelper).FullName);
+                if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0)
                 {
-                    string sparql = standardInterfaceHelper.SparQLQuery;
-                    var result = _DWISClient.RegisterQuery(sparql, CapabilityDescriptionCallBack);
-                    if (!string.IsNullOrEmpty(result.jsonQueryDiff))
+                    string? sparql = queries.First().Value.SparQL;
+                    if (!string.IsNullOrEmpty(sparql))
                     {
-                        var queryDiff = QueryResultsDiff.FromJsonString(result.jsonQueryDiff);
-                        if (queryDiff != null && queryDiff.Added != null && queryDiff.Added.Any())
+                        var result = _DWISClient.RegisterQuery(sparql, CapabilityDescriptionCallBack);
+                        if (!string.IsNullOrEmpty(result.jsonQueryDiff))
                         {
-                            registeredQueriesSparqls_.Add(queryDiff.QueryID, (sparql, _ADCSStandardInterfaceSubscriptionName));
-                            placeHolders_.Add(AcquiredSignals.CreateWithSubscription(new string[] { standardInterfaceHelper.SparQLQuery }, new string[] { _ADCSStandardInterfaceSubscriptionName }, 0, _DWISClient));
+                            var queryDiff = QueryResultsDiff.FromJsonString(result.jsonQueryDiff);
+                            if (queryDiff != null && queryDiff.Added != null && queryDiff.Added.Any())
+                            {
+                                registeredQueriesSparqls_.Add(queryDiff.QueryID, (sparql, _ADCSStandardInterfaceSubscriptionName));
+                                placeHolders_.Add(AcquiredSignals.CreateWithSubscription(new string[] { sparql }, new string[] { _ADCSStandardInterfaceSubscriptionName }, 0, _DWISClient));
+                            }
                         }
                     }
                 }
@@ -232,9 +236,11 @@ namespace DWIS.AdviceComposer.Service
 
         private async Task Loop(CancellationToken cancellationToken)
         {
-            List<ActivableFunction> currentFunctions = new List<ActivableFunction>();
+            ADCSStandardAutoDriller? autodriller = null;
             Dictionary<string, QueryResult> placeHolders = new Dictionary<string, QueryResult>();
             PeriodicTimer timer = new PeriodicTimer(_loopSpan);
+            DateTime start = DateTime.UtcNow;
+            int previousFlipFlop = 1;
             while (await timer.WaitForNextTickAsync(cancellationToken))
             {
                 if (placeHolders_ != null)
@@ -244,106 +250,93 @@ namespace DWIS.AdviceComposer.Service
                     {
                         if (signals != null && signals.Count > 0)
                         {
-                            foreach (AcquiredSignal signal in signals)
+                            foreach (var signal in signals)
                             {
-                                if (signal != null)
+                                string? json = signal.GetValue<string>();
+                                if (!string.IsNullOrEmpty(json))
                                 {
-                                    string? json = signal.GetValue<string>();
-                                    if (json != null)
+                                    try
                                     {
-                                        try
+                                        var settings = new JsonSerializerSettings
                                         {
-                                            var settings = new JsonSerializerSettings
-                                            {
-                                                TypeNameHandling = TypeNameHandling.Objects,
-                                                Formatting = Formatting.Indented
-                                            };
-                                            ActivableFunction? ADCSFunctionCapability = Newtonsoft.Json.JsonConvert.DeserializeObject<ActivableFunction>(json, settings);
-                                            if (ADCSFunctionCapability != null && !string.IsNullOrEmpty(ADCSFunctionCapability.Name))
-                                            {
-                                                bool found = false;
-                                                foreach (ActivableFunction function in currentFunctions)
-                                                {
-                                                    if (function != null && !string.IsNullOrEmpty(function.Name) && function.Name.Equals(ADCSFunctionCapability.Name))
-                                                    {
-                                                        found = true;
-                                                        break;
-                                                    }
-                                                }
-                                                if (!found)
-                                                {
-                                                    currentFunctions.Add(ADCSFunctionCapability);
-                                                    if (ADCSFunctionCapability.EnableFunction != null)
-                                                    {
-                                                        QueryResult? placeHolder = null;
-                                                        RegisterToBlackboard(ADCSFunctionCapability.EnableFunction, _DWISClient, ref placeHolder);
-                                                        if (placeHolder != null)
-                                                        {
-                                                            if (placeHolders.ContainsKey(ADCSFunctionCapability.Name))
-                                                            {
-                                                                placeHolders[ADCSFunctionCapability.Name] = placeHolder;
-                                                            }
-                                                            else
-                                                            {
-                                                                placeHolders.Add(ADCSFunctionCapability.Name, placeHolder);
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                                if (ADCSFunctionCapability is ControllerFunction controllerFunction)
-                                                {
-                                                    if (controllerFunction.Controllers != null)
-                                                    {
-                                                        foreach (Controller controller in controllerFunction.Controllers)
-                                                        {
-                                                            if (controller != null)
-                                                            {
-                                                                if (controller is ControllerWithOnlyLimits controllerWithOnlyLimits)
-                                                                {
-                                                                    if (controllerWithOnlyLimits.ControllerLimits != null)
-                                                                    {
-                                                                        foreach (var kpv in controllerWithOnlyLimits.ControllerLimits)
-                                                                        {
-                                                                            if (kpv.Value != null)
-                                                                            {
-
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }
-                                                                else if (controller is ControllerWithControlledVariable controllerWithControlledVariable)
-                                                                {
-                                                                    if (controllerWithControlledVariable.ControlledVariableReference != null)
-                                                                    {
-
-                                                                    }
-                                                                    if (controller is ControllerWithLimits controllerWithLimits)
-                                                                    {
-                                                                        if (controllerWithLimits.ControllerLimits != null)
-                                                                        {
-                                                                            foreach (var kpv in controllerWithLimits.ControllerLimits)
-                                                                            {
-                                                                                if (kpv.Value != null)
-                                                                                {
-
-                                                                                }
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        catch (Exception e)
+                                            TypeNameHandling = TypeNameHandling.Objects,
+                                            Formatting = Formatting.Indented
+                                        };
+                                        ActivableFunction? activableFunction = Newtonsoft.Json.JsonConvert.DeserializeObject<ActivableFunction>(json, settings);
+                                        if (activableFunction != null && activableFunction is ADCSStandardAutoDriller autoDriller)
                                         {
-                                            _logger?.LogError(e.ToString());
+                                            // read any information that may be useful for the advisor about the ADCS actual capabilities
+                                            autodriller = autoDriller;
+                                            break;
                                         }
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        _logger?.LogError(e.ToString());
                                     }
                                 }
                             }
+                        }
+                    }
+                    TimeSpan elapsed = start - DateTime.UtcNow;
+                    if (_DWISClient != null && autodriller != null && _contextPlaceHolder == null)
+                    {
+                        if (autodriller.ContextSemanticInfo != null && !string.IsNullOrEmpty(autodriller.ContextSemanticInfo.SparQLQuery) && autodriller.ContextSemanticInfo.SparQLVariables != null && autodriller.ContextSemanticInfo.Manifest != null)
+                        {
+                            RegisterToBlackboard(autodriller.ContextSemanticInfo, _DWISClient, ref _contextPlaceHolder);
+                        }
+                    }
+                    if (_DWISClient != null && _contextPlaceHolder != null && _contextPlaceHolder.Count > 0 && _contextPlaceHolder[0] != null && _contextPlaceHolder[0].Count > 0)
+                    {
+                        int flipFlop = (int)(elapsed.TotalSeconds / Configuration.ContextChangePeriod.TotalSeconds) % 2;
+                        if (flipFlop != previousFlipFlop)
+                        {
+                            DWISContext context = new DWISContext();
+                            if (context.CapabilityPreferences == null)
+                            {
+                                context.CapabilityPreferences = new List<Nouns.Enum>();
+                            }
+                            context.CapabilityPreferences.Clear();
+                            if (flipFlop == 0)
+                            {
+                                context.CapabilityPreferences.Add(Nouns.Enum.RigActionPlanFeature);
+                                context.CapabilityPreferences.Add(Nouns.Enum.CuttingsTransportFeature);
+                            }
+                            else
+                            {
+                                context.CapabilityPreferences.Add(Nouns.Enum.RigActionPlanFeature);
+                                context.CapabilityPreferences.Add(Nouns.Enum.DrillStemVibrationFeature);
+                            }
+                            var settings = new JsonSerializerSettings
+                            {
+                                TypeNameHandling = TypeNameHandling.Objects,
+                                Formatting = Formatting.Indented
+                            };
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(context, settings);
+                            if (!string.IsNullOrEmpty(json))
+                            {
+                                NodeIdentifier id = _contextPlaceHolder[0][0];
+                                if (id != null && !string.IsNullOrEmpty(id.ID) && !string.IsNullOrEmpty(id.NameSpace))
+                                {
+                                    // OPC-UA code to set the value at the node id = ID
+                                    (string nameSpace, string id, object value, DateTime sourceTimestamp)[] outputs = new (string nameSpace, string id, object value, DateTime sourceTimestamp)[1];
+                                    outputs[0].nameSpace = id.NameSpace;
+                                    outputs[0].id = id.ID;
+                                    outputs[0].value = json;
+                                    outputs[0].sourceTimestamp = DateTime.UtcNow;
+                                    bool ok = _DWISClient.UpdateAnyVariables(outputs);
+                                    if (ok)
+                                    {
+                                        string description = string.Empty;
+                                        foreach (var choice in context.CapabilityPreferences)
+                                        {
+                                            description += choice.ToString() + ", ";
+                                        }
+                                        _logger?.LogInformation("context changed to: " + description);
+                                    }
+                                }
+                            }
+                            previousFlipFlop = flipFlop;
                         }
                     }
                 }
