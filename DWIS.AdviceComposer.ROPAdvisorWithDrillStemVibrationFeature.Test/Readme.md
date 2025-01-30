@@ -53,4 +53,3 @@ The configuration file has the following properties:
 - `DPAmplitude` the PDM differential pressure sinusoid amplitude (Pa)
 - `DPAverage` the PDM differential pressure average value (Pa)
 - `DPPeriod` the PDM differential pressure sinusoid period (s)
-- 

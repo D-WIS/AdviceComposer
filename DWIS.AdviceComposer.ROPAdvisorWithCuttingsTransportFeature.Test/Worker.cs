@@ -31,7 +31,7 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithCuttingsTransportFeature.Test
 
         private static string _ADCSStandardInterfaceSubscriptionName = "ADCSStandardInterfaceSubscription";
         private static string _manifestName = "manifest for ROP Management";
-        private static string _prefix = "DWIS:Advisor:";
+        private static string _prefix = "DWIS:Advisor:Sekal:ROPManagement";
         private static string _companyName = "Sekal";
 
         public Worker(ILogger<Worker>? logger, ILogger<DWISClientOPCF>? loggerDWISClient)

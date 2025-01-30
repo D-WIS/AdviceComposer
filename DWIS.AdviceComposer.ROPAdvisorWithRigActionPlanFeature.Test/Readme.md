@@ -1,7 +1,7 @@
-﻿# ROP Advisor With Cutting Transport Feature
+﻿# ROP Advisor With Rig Action Plan Feature
 Output every second:
-- flowrate setpoint
-- rotational speed setpoint
+- flowrate Max Limit
+- rotational Max Limit
 - ROP Max limit
 - WOB Max limit
 - TOB Max Limit
@@ -9,23 +9,23 @@ Output every second:
 
 Each of these values vary through time using a sinusoidal function, which parameters are taken from the configuration file.
 
-The semantic of each of these values is declared to support the feature `CuttingsTransportFeature`.
+The semantic of each of these values is declared to support the feature `RigActionPlanFeature`.
 
 ## Getting started (internal)
 If you have created the docker image yourself, here is the procedured.
 
 The `docker run` command for windows is:
 ```
-docker run --name ropadvisorcuttings -v C:\Volumes\DWISAdvisorROPCuttings:/home dwisadvicecomposerropadvisorwithcuttingstransportfeaturetest:latest
+docker run --name ropadvisorrap -v C:\Volumes\DWISAdvisorROPRAP:/home dwisadvicecomposerropadvisorwithrigactionplanfeaturetest:latest
 ```
-where `C:\Volumes\DWISAdvisorROPCuttings` is any folder where you would like to access the config.json file that is used to configure
+where `C:\Volumes\DWISAdvisorROPRAP` is any folder where you would like to access the config.json file that is used to configure
 the application.
 
 and the `docker run` command for linux is:
 ```
-docker run --name ropadvisorcuttings -v /home/Volumes/DWISAdvisorROPCuttings:/home dwisadvicecomposerropadvisorwithcuttingstransportfeaturetest:latest
+docker run --name ropadvisorrap -v /home/Volumes/DWISAdvisorROPRAP:/home dwisadvicecomposerropadvisorwithrigactionplanfeaturetest:latest
 ```
-where `/home/Volumes/DWISAdvisorROPCuttings` is any directory where you would like to access the config.json file that is used to
+where `/home/Volumes/DWISAdvisorROPRAP` is any directory where you would like to access the config.json file that is used to
 configure the application.
 
 ## Configuration

@@ -7,7 +7,7 @@ using Newtonsoft.Json;
 using OSDC.DotnetLibraries.Drilling.DrillingProperties;
 using System.Reflection;
 
-namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
+namespace DWIS.AdviceComposer.ROPAdvisorWithRigActionPlanFeature.Test
 {
     public class Worker : BackgroundService
     {
@@ -18,8 +18,8 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
 
         private Configuration Configuration { get; set; } = new Configuration();
 
-        private QueryResult? _flowrateSetPointPlaceHolder = null;
-        private QueryResult? _rotationalSpeedSetPointPlaceHolder = null;
+        private QueryResult? _flowrateMaxLimitPlaceHolder = null;
+        private QueryResult? _rotationalSpeedMaxLimitPlaceHolder = null;
         private QueryResult? _ROPMaxLimitPlaceHolder = null;
         private QueryResult? _WOBMaxLimitPlaceHolder = null;
         private QueryResult? _TOBMaxLimitPlaceHolder = null;
@@ -31,8 +31,8 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
 
         private static string _ADCSStandardInterfaceSubscriptionName = "ADCSStandardInterfaceSubscription";
         private static string _manifestName = "manifest for ROP Management";
-        private static string _prefix = "DWIS:Advisor:BakerHughes:ROPManagement";
-        private static string _companyName = "Baker Hughes";
+        private static string _prefix = "DWIS:Advisor:Halliburton:ROPManagement";
+        private static string _companyName = "Halliburton";
 
         public Worker(ILogger<Worker>? logger, ILogger<DWISClientOPCF>? loggerDWISClient)
         {
@@ -208,28 +208,28 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
                         }
                     }
                 }
-                ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper helper = new ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper();
-                assembly = Assembly.GetAssembly(typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper));
-                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper).FullName, "BOSFlowrateSetPoint");
-                ManifestFile? manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper).FullName, "BOSFlowrateSetPoint", _manifestName, _companyName, _prefix);
+                ADCSStandardAutoDrillerRigActionPlanFeatureHelper helper = new ADCSStandardAutoDrillerRigActionPlanFeatureHelper();
+                assembly = Assembly.GetAssembly(typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper));
+                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "BOSFlowrateMaxLimit");
+                ManifestFile? manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "BOSFlowrateMaxLimit", _manifestName, _companyName, _prefix);
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
-                    helper.BOSFlowrateSetPoint.SparQLQuery = queries.First().Value.SparQL;
-                    helper.BOSFlowrateSetPoint.SparQLVariables = queries.First().Value.Variables;
-                    helper.BOSFlowrateSetPoint.Manifest = manifest;
-                    RegisterToBlackboard(helper.BOSFlowrateSetPoint, _DWISClient, ref _flowrateSetPointPlaceHolder);
+                    helper.BOSFlowrateMaxLimit.SparQLQuery = queries.First().Value.SparQL;
+                    helper.BOSFlowrateMaxLimit.SparQLVariables = queries.First().Value.Variables;
+                    helper.BOSFlowrateMaxLimit.Manifest = manifest;
+                    RegisterToBlackboard(helper.BOSFlowrateMaxLimit, _DWISClient, ref _flowrateMaxLimitPlaceHolder);
                 }
-                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper).FullName, "BOSAngularVelocitySetPoint");
-                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper).FullName, "BOSAngularVelocitySetPoint", _manifestName, _companyName, _prefix);
+                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "BOSAngularVelocityMaxLimit");
+                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "BOSAngularVelocityMaxLimit", _manifestName, _companyName, _prefix);
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
-                    helper.BOSAngularVelocitySetPoint.SparQLQuery = queries.First().Value.SparQL;
-                    helper.BOSAngularVelocitySetPoint.SparQLVariables = queries.First().Value.Variables;
-                    helper.BOSAngularVelocitySetPoint.Manifest = manifest;
-                    RegisterToBlackboard(helper.BOSAngularVelocitySetPoint, _DWISClient, ref _rotationalSpeedSetPointPlaceHolder);
+                    helper.BOSAngularVelocityMaxLimit.SparQLQuery = queries.First().Value.SparQL;
+                    helper.BOSAngularVelocityMaxLimit.SparQLVariables = queries.First().Value.Variables;
+                    helper.BOSAngularVelocityMaxLimit.Manifest = manifest;
+                    RegisterToBlackboard(helper.BOSAngularVelocityMaxLimit, _DWISClient, ref _rotationalSpeedMaxLimitPlaceHolder);
                 }
-                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper).FullName, "ROPMaxLimitReference");
-                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper).FullName, "ROPMaxLimitReference", _manifestName, _companyName, _prefix);
+                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "ROPMaxLimitReference");
+                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "ROPMaxLimitReference", _manifestName, _companyName, _prefix);
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
                     helper.ROPMaxLimitReference.SparQLQuery = queries.First().Value.SparQL;
@@ -237,8 +237,8 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
                     helper.ROPMaxLimitReference.Manifest = manifest;
                     RegisterToBlackboard(helper.ROPMaxLimitReference, _DWISClient, ref _ROPMaxLimitPlaceHolder);
                 }
-                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper).FullName, "WOBMaxLimitReference");
-                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper).FullName, "WOBMaxLimitReference", _manifestName, _companyName, _prefix);
+                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "WOBMaxLimitReference");
+                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "WOBMaxLimitReference", _manifestName, _companyName, _prefix);
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
                     helper.WOBMaxLimitReference.SparQLQuery = queries.First().Value.SparQL;
@@ -246,8 +246,8 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
                     helper.WOBMaxLimitReference.Manifest = manifest;
                     RegisterToBlackboard(helper.WOBMaxLimitReference, _DWISClient, ref _WOBMaxLimitPlaceHolder);
                 }
-                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper).FullName, "BitTorqueMaxLimitReference");
-                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper).FullName, "BitTorqueMaxLimitReference", _manifestName, _companyName, _prefix);
+                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "BitTorqueMaxLimitReference");
+                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "BitTorqueMaxLimitReference", _manifestName, _companyName, _prefix);
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
                     helper.BitTorqueMaxLimitReference.SparQLQuery = queries.First().Value.SparQL;
@@ -255,8 +255,8 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
                     helper.BitTorqueMaxLimitReference.Manifest = manifest;
                     RegisterToBlackboard(helper.BitTorqueMaxLimitReference, _DWISClient, ref _TOBMaxLimitPlaceHolder);
                 }
-                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper).FullName, "DifferentialPressureMaxLimitReference");
-                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper).FullName, "DifferentialPressureMaxLimitReference", _manifestName, _companyName, _prefix);
+                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "DifferentialPressureMaxLimitReference");
+                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "DifferentialPressureMaxLimitReference", _manifestName, _companyName, _prefix);
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
                     helper.DifferentialPressureMaxLimitReference.SparQLQuery = queries.First().Value.SparQL;
@@ -344,9 +344,9 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
                     WOB = Configuration.WOBAverage + Configuration.WOBAmplitude * Math.Sin(2.0 * Math.PI * elapsed.TotalSeconds / Configuration.WOBPeriod);
                     TOB = Configuration.TOBAverage + Configuration.TOBAmplitude * Math.Sin(2.0 * Math.PI * elapsed.TotalSeconds / Configuration.TOBPeriod);
                     DP = Configuration.DPAverage + Configuration.DPAmplitude * Math.Sin(2.0 * Math.PI * elapsed.TotalSeconds / Configuration.DPPeriod);
-                    if (_DWISClient != null && _flowrateSetPointPlaceHolder != null && _flowrateSetPointPlaceHolder.Count > 0 && _flowrateSetPointPlaceHolder[0].Count > 0)
+                    if (_DWISClient != null && _flowrateMaxLimitPlaceHolder != null && _flowrateMaxLimitPlaceHolder.Count > 0 && _flowrateMaxLimitPlaceHolder[0].Count > 0)
                     {
-                        NodeIdentifier id = _flowrateSetPointPlaceHolder[0][0];
+                        NodeIdentifier id = _flowrateMaxLimitPlaceHolder[0][0];
                         if (id != null && !string.IsNullOrEmpty(id.ID) && !string.IsNullOrEmpty(id.NameSpace))
                         {
                             // OPC-UA code to set the value at the node id = ID
@@ -362,9 +362,9 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
                             }
                         }
                     }
-                    if (_DWISClient != null && _rotationalSpeedSetPointPlaceHolder != null && _rotationalSpeedSetPointPlaceHolder.Count > 0 && _rotationalSpeedSetPointPlaceHolder[0].Count > 0)
+                    if (_DWISClient != null && _rotationalSpeedMaxLimitPlaceHolder != null && _rotationalSpeedMaxLimitPlaceHolder.Count > 0 && _rotationalSpeedMaxLimitPlaceHolder[0].Count > 0)
                     {
-                        NodeIdentifier id = _rotationalSpeedSetPointPlaceHolder[0][0];
+                        NodeIdentifier id = _rotationalSpeedMaxLimitPlaceHolder[0][0];
                         if (id != null && !string.IsNullOrEmpty(id.ID) && !string.IsNullOrEmpty(id.NameSpace))
                         {
                             // OPC-UA code to set the value at the node id = ID
