@@ -27,9 +27,6 @@ namespace DWIS.AdviceComposer.SchedulerROPContext.Test
         private List<AcquiredSignals> placeHolders_ = new List<AcquiredSignals>();
 
         private static string _ADCSStandardInterfaceSubscriptionName = "ADCSStandardInterfaceSubscription";
-        private static string _manifestName = "manifest for DWIS Scheduler Test for ROP Management Context";
-        private static string _prefix = "DWIS:Scheduler:ROPManagementContext:Test";
-        private static string _companyName = "NORCE";
 
         public Worker(ILogger<Worker>? logger, ILogger<DWISClientOPCF>? loggerDWISClient)
         {
@@ -237,13 +234,13 @@ namespace DWIS.AdviceComposer.SchedulerROPContext.Test
         private async Task Loop(CancellationToken cancellationToken)
         {
             ADCSStandardAutoDriller? autodriller = null;
-            Dictionary<string, QueryResult> placeHolders = new Dictionary<string, QueryResult>();
+            QueryResult? enablePlaceHolder = null;
             PeriodicTimer timer = new PeriodicTimer(_loopSpan);
             DateTime start = DateTime.UtcNow;
             int previousFlipFlop = 1;
             while (await timer.WaitForNextTickAsync(cancellationToken))
             {
-                if (placeHolders_ != null)
+                if (placeHolders_ != null && autodriller == null)
                 {
                     var existing = placeHolders_.FirstOrDefault(ph => ph.Any() && ph.First().Key == _ADCSStandardInterfaceSubscriptionName);
                     if (existing != null && existing.TryGetValue(_ADCSStandardInterfaceSubscriptionName, out List<AcquiredSignal>? signals))
@@ -267,6 +264,10 @@ namespace DWIS.AdviceComposer.SchedulerROPContext.Test
                                         {
                                             // read any information that may be useful for the advisor about the ADCS actual capabilities
                                             autodriller = autoDriller;
+                                            if (autodriller.EnableFunction != null)
+                                            {
+                                                RegisterToBlackboard(autodriller.EnableFunction, _DWISClient, ref enablePlaceHolder);
+                                            }
                                             break;
                                         }
                                     }
@@ -278,66 +279,66 @@ namespace DWIS.AdviceComposer.SchedulerROPContext.Test
                             }
                         }
                     }
-                    TimeSpan elapsed = start - DateTime.UtcNow;
-                    if (_DWISClient != null && autodriller != null && _contextPlaceHolder == null)
+                }
+                TimeSpan elapsed = start - DateTime.UtcNow;
+                if (_DWISClient != null && autodriller != null && _contextPlaceHolder == null)
+                {
+                    if (autodriller.ContextSemanticInfo != null && !string.IsNullOrEmpty(autodriller.ContextSemanticInfo.SparQLQuery) && autodriller.ContextSemanticInfo.SparQLVariables != null && autodriller.ContextSemanticInfo.Manifest != null)
                     {
-                        if (autodriller.ContextSemanticInfo != null && !string.IsNullOrEmpty(autodriller.ContextSemanticInfo.SparQLQuery) && autodriller.ContextSemanticInfo.SparQLVariables != null && autodriller.ContextSemanticInfo.Manifest != null)
-                        {
-                            RegisterToBlackboard(autodriller.ContextSemanticInfo, _DWISClient, ref _contextPlaceHolder);
-                        }
+                        RegisterToBlackboard(autodriller.ContextSemanticInfo, _DWISClient, ref _contextPlaceHolder);
                     }
-                    if (_DWISClient != null && _contextPlaceHolder != null && _contextPlaceHolder.Count > 0 && _contextPlaceHolder[0] != null && _contextPlaceHolder[0].Count > 0)
+                }
+                if (_DWISClient != null && _contextPlaceHolder != null && _contextPlaceHolder.Count > 0 && _contextPlaceHolder[0] != null && _contextPlaceHolder[0].Count > 0)
+                {
+                    int flipFlop = (int)(elapsed.TotalSeconds / Configuration.ContextChangePeriod.TotalSeconds) % 2;
+                    if (flipFlop != previousFlipFlop)
                     {
-                        int flipFlop = (int)(elapsed.TotalSeconds / Configuration.ContextChangePeriod.TotalSeconds) % 2;
-                        if (flipFlop != previousFlipFlop)
+                        DWISContext context = new DWISContext();
+                        if (context.CapabilityPreferences == null)
                         {
-                            DWISContext context = new DWISContext();
-                            if (context.CapabilityPreferences == null)
+                            context.CapabilityPreferences = new List<Nouns.Enum>();
+                        }
+                        context.CapabilityPreferences.Clear();
+                        if (flipFlop == 0)
+                        {
+                            context.CapabilityPreferences.Add(Nouns.Enum.RigActionPlanFeature);
+                            context.CapabilityPreferences.Add(Nouns.Enum.CuttingsTransportFeature);
+                        }
+                        else
+                        {
+                            context.CapabilityPreferences.Add(Nouns.Enum.RigActionPlanFeature);
+                            context.CapabilityPreferences.Add(Nouns.Enum.DrillStemVibrationFeature);
+                        }
+                        var settings = new JsonSerializerSettings
+                        {
+                            TypeNameHandling = TypeNameHandling.Objects,
+                            Formatting = Formatting.Indented
+                        };
+                        string json = Newtonsoft.Json.JsonConvert.SerializeObject(context, settings);
+                        if (!string.IsNullOrEmpty(json))
+                        {
+                            NodeIdentifier id = _contextPlaceHolder[0][0];
+                            if (id != null && !string.IsNullOrEmpty(id.ID) && !string.IsNullOrEmpty(id.NameSpace))
                             {
-                                context.CapabilityPreferences = new List<Nouns.Enum>();
-                            }
-                            context.CapabilityPreferences.Clear();
-                            if (flipFlop == 0)
-                            {
-                                context.CapabilityPreferences.Add(Nouns.Enum.RigActionPlanFeature);
-                                context.CapabilityPreferences.Add(Nouns.Enum.CuttingsTransportFeature);
-                            }
-                            else
-                            {
-                                context.CapabilityPreferences.Add(Nouns.Enum.RigActionPlanFeature);
-                                context.CapabilityPreferences.Add(Nouns.Enum.DrillStemVibrationFeature);
-                            }
-                            var settings = new JsonSerializerSettings
-                            {
-                                TypeNameHandling = TypeNameHandling.Objects,
-                                Formatting = Formatting.Indented
-                            };
-                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(context, settings);
-                            if (!string.IsNullOrEmpty(json))
-                            {
-                                NodeIdentifier id = _contextPlaceHolder[0][0];
-                                if (id != null && !string.IsNullOrEmpty(id.ID) && !string.IsNullOrEmpty(id.NameSpace))
+                                // OPC-UA code to set the value at the node id = ID
+                                (string nameSpace, string id, object value, DateTime sourceTimestamp)[] outputs = new (string nameSpace, string id, object value, DateTime sourceTimestamp)[1];
+                                outputs[0].nameSpace = id.NameSpace;
+                                outputs[0].id = id.ID;
+                                outputs[0].value = json;
+                                outputs[0].sourceTimestamp = DateTime.UtcNow;
+                                bool ok = _DWISClient.UpdateAnyVariables(outputs);
+                                if (ok)
                                 {
-                                    // OPC-UA code to set the value at the node id = ID
-                                    (string nameSpace, string id, object value, DateTime sourceTimestamp)[] outputs = new (string nameSpace, string id, object value, DateTime sourceTimestamp)[1];
-                                    outputs[0].nameSpace = id.NameSpace;
-                                    outputs[0].id = id.ID;
-                                    outputs[0].value = json;
-                                    outputs[0].sourceTimestamp = DateTime.UtcNow;
-                                    bool ok = _DWISClient.UpdateAnyVariables(outputs);
-                                    if (ok)
+                                    string description = string.Empty;
+                                    foreach (var choice in context.CapabilityPreferences)
                                     {
-                                        string description = string.Empty;
-                                        foreach (var choice in context.CapabilityPreferences)
-                                        {
-                                            description += choice.ToString() + ", ";
-                                        }
-                                        _logger?.LogInformation("context changed to: " + description);
+                                        description += choice.ToString() + ", ";
                                     }
+                                    _logger?.LogInformation("context changed to: " + description);
                                 }
                             }
-                            previousFlipFlop = flipFlop;
                         }
+                        previousFlipFlop = flipFlop;
                     }
                 }
             }

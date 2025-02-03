@@ -30,7 +30,7 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithRigActionPlanFeature.Test
         private List<AcquiredSignals> placeHolders_ = new List<AcquiredSignals>();
 
         private static string _ADCSStandardInterfaceSubscriptionName = "ADCSStandardInterfaceSubscription";
-        private static string _manifestName = "manifest for ROP Management";
+        private static string _manifestName = "ROPAdvisorWithRigActionPlanFeature";
         private static string _prefix = "DWIS:Advisor:Halliburton:ROPManagement";
         private static string _companyName = "Halliburton";
 
@@ -212,7 +212,7 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithRigActionPlanFeature.Test
                 ADCSStandardAutoDrillerRigActionPlanFeatureHelper helper = new ADCSStandardAutoDrillerRigActionPlanFeatureHelper();
                 assembly = Assembly.GetAssembly(typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper));
                 queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "BOSFlowrateMaxLimit");
-                ManifestFile? manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "BOSFlowrateMaxLimit", _manifestName, _companyName, _prefix);
+                ManifestFile? manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "BOSFlowrateMaxLimit", _manifestName, _companyName, _prefix + "BOSFlowrateMaxLimit");
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
                     helper.BOSFlowrateMaxLimit.SparQLQuery = queries.First().Value.SparQL;
@@ -221,7 +221,7 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithRigActionPlanFeature.Test
                     RegisterToBlackboard(helper.BOSFlowrateMaxLimit, _DWISClient, ref _flowrateMaxLimitPlaceHolder);
                 }
                 queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "BOSAngularVelocityMaxLimit");
-                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "BOSAngularVelocityMaxLimit", _manifestName, _companyName, _prefix);
+                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "BOSAngularVelocityMaxLimit", _manifestName, _companyName, _prefix + "BOSAngularVelocityMaxLimit");
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
                     helper.BOSAngularVelocityMaxLimit.SparQLQuery = queries.First().Value.SparQL;
@@ -230,7 +230,7 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithRigActionPlanFeature.Test
                     RegisterToBlackboard(helper.BOSAngularVelocityMaxLimit, _DWISClient, ref _rotationalSpeedMaxLimitPlaceHolder);
                 }
                 queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "ROPMaxLimitReference");
-                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "ROPMaxLimitReference", _manifestName, _companyName, _prefix);
+                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "ROPMaxLimitReference", _manifestName, _companyName, _prefix + "ROPMaxLimitReference");
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
                     helper.ROPMaxLimitReference.SparQLQuery = queries.First().Value.SparQL;
@@ -239,7 +239,7 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithRigActionPlanFeature.Test
                     RegisterToBlackboard(helper.ROPMaxLimitReference, _DWISClient, ref _ROPMaxLimitPlaceHolder);
                 }
                 queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "WOBMaxLimitReference");
-                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "WOBMaxLimitReference", _manifestName, _companyName, _prefix);
+                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "WOBMaxLimitReference", _manifestName, _companyName, _prefix + "WOBMaxLimitReference");
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
                     helper.WOBMaxLimitReference.SparQLQuery = queries.First().Value.SparQL;
@@ -248,7 +248,7 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithRigActionPlanFeature.Test
                     RegisterToBlackboard(helper.WOBMaxLimitReference, _DWISClient, ref _WOBMaxLimitPlaceHolder);
                 }
                 queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "BitTorqueMaxLimitReference");
-                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "BitTorqueMaxLimitReference", _manifestName, _companyName, _prefix);
+                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "BitTorqueMaxLimitReference", _manifestName, _companyName, _prefix + "BitTorqueMaxLimitReference");
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
                     helper.BitTorqueMaxLimitReference.SparQLQuery = queries.First().Value.SparQL;
@@ -257,7 +257,7 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithRigActionPlanFeature.Test
                     RegisterToBlackboard(helper.BitTorqueMaxLimitReference, _DWISClient, ref _TOBMaxLimitPlaceHolder);
                 }
                 queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "DifferentialPressureMaxLimitReference");
-                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "DifferentialPressureMaxLimitReference", _manifestName, _companyName, _prefix);
+                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "DifferentialPressureMaxLimitReference", _manifestName, _companyName, _prefix + "DifferentialPressureMaxLimitReference");
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
                     helper.DifferentialPressureMaxLimitReference.SparQLQuery = queries.First().Value.SparQL;
