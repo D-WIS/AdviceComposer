@@ -33,6 +33,7 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
         private static string _manifestName = "ROPAdvisorWithDrillStemVibrationFeature";
         private static string _prefix = "DWIS:Advisor:BakerHughes:ROPManagement";
         private static string _companyName = "BakerHughes";
+        private static string _advisorName = "iTrack";
 
         public Worker(ILogger<Worker>? logger, ILogger<DWISClientOPCF>? loggerDWISClient)
         {
@@ -133,6 +134,7 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
             if (DWISClient != null && assignable != null && assignable.Manifest != null && !string.IsNullOrEmpty(assignable.SparQLQuery) && assignable.SparQLVariables != null && assignable.SparQLVariables.Count > 0)
             {
                 ManifestFile manifestFile = assignable.Manifest;
+                UpdateAdvisor(manifestFile, "Advisor", _advisorName);
                 string sparQLQuery = assignable.SparQLQuery;
                 List<string>? variables = assignable.SparQLVariables.ToList<string>();
                 QueryResult? res = null;
@@ -215,6 +217,7 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
                 ManifestFile? manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper).FullName, "BOSFlowrateSetPoint", _manifestName, _companyName, _prefix + "BOSFlowrateSetPoint");
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
+                    UpdateAdvisor(manifest, "Advisor", _advisorName);
                     helper.BOSFlowrateSetPoint.SparQLQuery = queries.First().Value.SparQL;
                     helper.BOSFlowrateSetPoint.SparQLVariables = queries.First().Value.Variables;
                     helper.BOSFlowrateSetPoint.Manifest = manifest;
@@ -224,6 +227,7 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
                 manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper).FullName, "BOSAngularVelocitySetPoint", _manifestName, _companyName, _prefix + "BOSAngularVelocitySetPoint");
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
+                    UpdateAdvisor(manifest, "Advisor", _advisorName);
                     helper.BOSAngularVelocitySetPoint.SparQLQuery = queries.First().Value.SparQL;
                     helper.BOSAngularVelocitySetPoint.SparQLVariables = queries.First().Value.Variables;
                     helper.BOSAngularVelocitySetPoint.Manifest = manifest;
@@ -233,6 +237,7 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
                 manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper).FullName, "ROPMaxLimitReference", _manifestName, _companyName, _prefix + "ROPMaxLimitReference");
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
+                    UpdateAdvisor(manifest, "Advisor", _advisorName);
                     helper.ROPMaxLimitReference.SparQLQuery = queries.First().Value.SparQL;
                     helper.ROPMaxLimitReference.SparQLVariables = queries.First().Value.Variables;
                     helper.ROPMaxLimitReference.Manifest = manifest;
@@ -242,6 +247,7 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
                 manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper).FullName, "WOBMaxLimitReference", _manifestName, _companyName, _prefix + "WOBMaxLimitReference");
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
+                    UpdateAdvisor(manifest, "Advisor", _advisorName);
                     helper.WOBMaxLimitReference.SparQLQuery = queries.First().Value.SparQL;
                     helper.WOBMaxLimitReference.SparQLVariables = queries.First().Value.Variables;
                     helper.WOBMaxLimitReference.Manifest = manifest;
@@ -251,6 +257,7 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
                 manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper).FullName, "BitTorqueMaxLimitReference", _manifestName, _companyName, _prefix + "BitTorqueMaxLimitReference");
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
+                    UpdateAdvisor(manifest, "Advisor", _advisorName);
                     helper.BitTorqueMaxLimitReference.SparQLQuery = queries.First().Value.SparQL;
                     helper.BitTorqueMaxLimitReference.SparQLVariables = queries.First().Value.Variables;
                     helper.BitTorqueMaxLimitReference.Manifest = manifest;
@@ -260,6 +267,7 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
                 manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerDrillStemVibrationFeatureHelper).FullName, "DifferentialPressureMaxLimitReference", _manifestName, _companyName, _prefix + "DifferentialPressureMaxLimitReference");
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
+                    UpdateAdvisor(manifest, "Advisor", _advisorName);
                     helper.DifferentialPressureMaxLimitReference.SparQLQuery = queries.First().Value.SparQL;
                     helper.DifferentialPressureMaxLimitReference.SparQLVariables = queries.First().Value.Variables;
                     helper.DifferentialPressureMaxLimitReference.Manifest = manifest;
@@ -457,5 +465,80 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test
                 }
             }
         }
+
+        private void UpdateAdvisor(ManifestFile? manifestFile, string oldName, string newName)
+        {
+            oldName = ProcessManifestVariable(oldName);
+            newName = ProcessManifestVariable(newName);
+            if (manifestFile != null)
+            {
+                if (manifestFile.ProvidedVariables != null)
+                {
+                    foreach (var v in manifestFile.ProvidedVariables)
+                    {
+                        if (v != null && !string.IsNullOrEmpty(v.VariableID) && v.VariableID.Equals(oldName))
+                        {
+                            v.VariableID = newName;
+                        }
+                    }
+                }
+                if (manifestFile.InjectedVariables != null)
+                {
+                    foreach (var v in manifestFile.InjectedVariables)
+                    {
+                        if (v != null && !string.IsNullOrEmpty(v.InjectedName) && v.InjectedName.Equals(oldName))
+                        {
+                            v.InjectedName = newName;
+                        }
+                        if (v != null && !string.IsNullOrEmpty(v.NativeAddressSpaceNodeID) && v.InjectedName.Equals(oldName))
+                        {
+                            v.NativeAddressSpaceNodeID = newName;
+                        }
+                    }
+                }
+                if (manifestFile.InjectedNodes != null)
+                {
+                    foreach (var v in manifestFile.InjectedNodes)
+                    {
+                        if (v != null && !string.IsNullOrEmpty(v.UniqueName) && v.UniqueName.Equals(oldName))
+                        {
+                            v.UniqueName = newName;
+                        }
+                        if (v != null && !string.IsNullOrEmpty(v.DisplayName) && v.DisplayName.Equals(oldName))
+                        {
+                            v.DisplayName = newName;
+                        }
+                        if (v != null && !string.IsNullOrEmpty(v.BrowseName) && v.BrowseName.Equals(oldName))
+                        {
+                            v.BrowseName = newName;
+                        }
+                    }
+                }
+                if (manifestFile.InjectedReferences != null)
+                {
+                    foreach (var v in manifestFile.InjectedReferences)
+                    {
+                        if (v != null)
+                        {
+                            if (v.Subject != null && !string.IsNullOrEmpty(v.Subject.ID) && v.Subject.ID.Equals(oldName))
+                            {
+                                v.Subject.ID = newName;
+                            }
+                            if (v.Object != null && !string.IsNullOrEmpty(v.Object.ID) && v.Object.ID.Equals(oldName))
+                            {
+                                v.Object.ID = newName;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private static string ProcessManifestVariable(string variable)
+        {
+            variable = variable.Trim();
+            return variable;
+        }
+
     }
 }
