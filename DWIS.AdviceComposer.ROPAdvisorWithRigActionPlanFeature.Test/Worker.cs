@@ -228,10 +228,10 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithRigActionPlanFeature.Test
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
                     UpdateAdvisor(manifest, "Advisor", _advisorName);
-                    helper.BOSAngularVelocityMaxLimit.SparQLQuery = queries.First().Value.SparQL;
-                    helper.BOSAngularVelocityMaxLimit.SparQLVariables = queries.First().Value.Variables;
-                    helper.BOSAngularVelocityMaxLimit.Manifest = manifest;
-                    RegisterToBlackboard(helper.BOSAngularVelocityMaxLimit, _DWISClient, ref _rotationalSpeedMaxLimitPlaceHolder);
+                    helper.BOSRotationalSpeedSetPoint.SparQLQuery = queries.First().Value.SparQL;
+                    helper.BOSRotationalSpeedSetPoint.SparQLVariables = queries.First().Value.Variables;
+                    helper.BOSRotationalSpeedSetPoint.Manifest = manifest;
+                    RegisterToBlackboard(helper.BOSRotationalSpeedSetPoint, _DWISClient, ref _rotationalSpeedMaxLimitPlaceHolder);
                 }
                 queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "ROPMaxLimitReference");
                 manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerRigActionPlanFeatureHelper).FullName, "ROPMaxLimitReference", _manifestName, _companyName, _prefix + "ROPMaxLimitReference");
@@ -271,7 +271,7 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithRigActionPlanFeature.Test
                     helper.DifferentialPressureMaxLimitReference.SparQLQuery = queries.First().Value.SparQL;
                     helper.DifferentialPressureMaxLimitReference.SparQLVariables = queries.First().Value.Variables;
                     helper.DifferentialPressureMaxLimitReference.Manifest = manifest;
-                    RegisterToBlackboard(helper.DifferentialPressureMaxLimitReference, _DWISClient, ref _TOBMaxLimitPlaceHolder);
+                    RegisterToBlackboard(helper.DifferentialPressureMaxLimitReference, _DWISClient, ref _DPMaxLimitPlaceHolder);
                 }
                 await Loop(cancellationToken);
             }
