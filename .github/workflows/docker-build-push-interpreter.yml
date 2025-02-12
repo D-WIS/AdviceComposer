@@ -1,0 +1,26 @@
+name: Build and Push Docker AdviceComposer image
+
+on:
+  workflow_dispatch:
+  #push:
+    #branches: [ "main" ]
+
+jobs:
+
+  build:
+  
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v2
+      
+    - name: Build Service Docker image
+      run: docker build --file "${{ github.workspace }}/DWIS.AdviceComposer.Service/Dockerfile" --tag digiwells/dwisadvicecomposerservice:stable .
+
+    - name: Login to DockerHub
+      run: docker login -u="${{ secrets.DOCKERHUB_USERNAME }}" -p="${{ secrets.DOCKERHUB_PASSWORD }}"
+        
+    - name: Push images to DockerHub
+      run: |
+        docker push digiwells/dwisadvicecomposerservice:stable

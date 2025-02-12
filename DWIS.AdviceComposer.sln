@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DWIS.AdviceComposer.Service
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{FFFE2361-9993-49C3-850A-57D79500F66F}"
 	ProjectSection(SolutionItems) = preProject
+		.github\workflows\docker-build-push-interpreter.yml = .github\workflows\docker-build-push-interpreter.yml
+		.github\workflows\generate-pack-push-model.yml = .github\workflows\generate-pack-push-model.yml
 		README.md = README.md
 	EndProjectSection
 EndProject
