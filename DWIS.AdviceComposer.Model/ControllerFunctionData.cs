@@ -11,14 +11,18 @@ namespace DWIS.AdviceComposer.Model
     {
         public List<Vocabulary.Schemas.Nouns.Enum> Features { get; set; } = new List<Vocabulary.Schemas.Nouns.Enum>();
         public string AdvisorName { get; set; } = string.Empty;
+        public object? Parameters { get; set; } = null;
+        public QueryResult? ParametersDestinationQueryResult { get; set; } = null;
         public List<ControllerData> ControllerDatas { get; set; } = new List<ControllerData>();
     }
 
     public class ControllerData
     {
+        public object? Parameters { get; set; } = null;
         public double? SetPointRecommendation { get; set; } = null;
         public double? SetPointRateOfChange { get; set; } = null;
         public double? MeasuredValue { get; set; } = null;
+        public QueryResult? ParametersDestinationQueryResult { get; set; } = null;
         public QueryResult? SetPointDestinationQueryResult { get; set; } = null;
 
         public List<ControllerLimitData> ControllerLimitDatas { get; set; } = new List<ControllerLimitData>();
