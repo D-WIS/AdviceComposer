@@ -10,7 +10,7 @@
 
   <ItemGroup>
     <PackageReference Include="DWIS.Client.ReferenceImplementation.OPCFoundation" Version="2.1.20" />
-    <PackageReference Include="DWIS.Scheduler.Model" Version="1.0.5" />
+    <PackageReference Include="DWIS.Scheduler.Model" Version="1.0.6" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.0" />
   </ItemGroup>
