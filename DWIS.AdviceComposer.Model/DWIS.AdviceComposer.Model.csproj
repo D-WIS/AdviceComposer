@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="DWIS.RigOS.Capabilities.Controller.Model" Version="1.0.4-build.23" />
+    <PackageReference Include="DWIS.RigOS.Capabilities.Controller.Model" Version="1.0.4-build.30" />
   </ItemGroup>
 
 </Project>

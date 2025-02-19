@@ -214,65 +214,65 @@ namespace DWIS.AdviceComposer.ROPAdvisorWithCuttingsTransportFeature.Test
                 }
                 ADCSStandardAutoDrillerCuttingsTransportFeatureHelper helper = new ADCSStandardAutoDrillerCuttingsTransportFeatureHelper();
                 assembly = Assembly.GetAssembly(typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper));
-                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "BOSFlowrateSetPoint");
-                ManifestFile? manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "BOSFlowrateSetPoint", _manifestName, _companyName, _prefix + "BOSFlowrateSetPoint");
+                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "BOSFlowrateAdvisedTarget");
+                ManifestFile? manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "BOSFlowrateAdvisedTarget", _manifestName, _companyName, _prefix + "BOSFlowrateAdvisedTarget");
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
                     UpdateAdvisor(manifest, "Advisor", _advisorName);
-                    helper.BOSFlowrateSetPoint.SparQLQuery = queries.First().Value.SparQL;
-                    helper.BOSFlowrateSetPoint.SparQLVariables = queries.First().Value.Variables;
-                    helper.BOSFlowrateSetPoint.Manifest = manifest;
-                    RegisterToBlackboard(helper.BOSFlowrateSetPoint, _DWISClient, ref _flowrateSetPointPlaceHolder);
+                    helper.BOSFlowrateAdvisedTarget.SparQLQuery = queries.First().Value.SparQL;
+                    helper.BOSFlowrateAdvisedTarget.SparQLVariables = queries.First().Value.Variables;
+                    helper.BOSFlowrateAdvisedTarget.Manifest = manifest;
+                    RegisterToBlackboard(helper.BOSFlowrateAdvisedTarget, _DWISClient, ref _flowrateSetPointPlaceHolder);
                 }
-                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "BOSAngularVelocitySetPoint");
-                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "BOSAngularVelocitySetPoint", _manifestName, _companyName, _prefix + "BOSAngularVelocitySetPoint");
+                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "BOSRotationalSpeedAdvisedTarget");
+                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "BOSRotationalSpeedAdvisedTarget", _manifestName, _companyName, _prefix + "BOSRotationalSpeedAdvisedTarget");
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
                     UpdateAdvisor(manifest, "Advisor", _advisorName);
-                    helper.BOSRotationalSpeedSetPoint.SparQLQuery = queries.First().Value.SparQL;
-                    helper.BOSRotationalSpeedSetPoint.SparQLVariables = queries.First().Value.Variables;
-                    helper.BOSRotationalSpeedSetPoint.Manifest = manifest;
-                    RegisterToBlackboard(helper.BOSRotationalSpeedSetPoint, _DWISClient, ref _rotationalSpeedSetPointPlaceHolder);
+                    helper.BOSRotationalSpeedAdvisedTarget.SparQLQuery = queries.First().Value.SparQL;
+                    helper.BOSRotationalSpeedAdvisedTarget.SparQLVariables = queries.First().Value.Variables;
+                    helper.BOSRotationalSpeedAdvisedTarget.Manifest = manifest;
+                    RegisterToBlackboard(helper.BOSRotationalSpeedAdvisedTarget, _DWISClient, ref _rotationalSpeedSetPointPlaceHolder);
                 }
-                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "ROPMaxLimitReference");
-                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "ROPMaxLimitReference", _manifestName, _companyName, _prefix + "ROPMaxLimitReference");
+                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "ROPAdvisedMaximum");
+                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "ROPAdvisedMaximum", _manifestName, _companyName, _prefix + "ROPAdvisedMaximum");
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
                     UpdateAdvisor(manifest, "Advisor", _advisorName);
-                    helper.ROPMaxLimitReference.SparQLQuery = queries.First().Value.SparQL;
-                    helper.ROPMaxLimitReference.SparQLVariables = queries.First().Value.Variables;
-                    helper.ROPMaxLimitReference.Manifest = manifest;
-                    RegisterToBlackboard(helper.ROPMaxLimitReference, _DWISClient, ref _ROPMaxLimitPlaceHolder);
+                    helper.ROPAdvisedMaximum.SparQLQuery = queries.First().Value.SparQL;
+                    helper.ROPAdvisedMaximum.SparQLVariables = queries.First().Value.Variables;
+                    helper.ROPAdvisedMaximum.Manifest = manifest;
+                    RegisterToBlackboard(helper.ROPAdvisedMaximum, _DWISClient, ref _ROPMaxLimitPlaceHolder);
                 }
-                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "WOBMaxLimitReference");
-                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "WOBMaxLimitReference", _manifestName, _companyName, _prefix + "WOBMaxLimitReference");
+                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "WOBAdvisedMaximum");
+                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "WOBAdvisedMaximum", _manifestName, _companyName, _prefix + "WOBAdvisedMaximum");
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
                     UpdateAdvisor(manifest, "Advisor", _advisorName);
-                    helper.WOBMaxLimitReference.SparQLQuery = queries.First().Value.SparQL;
-                    helper.WOBMaxLimitReference.SparQLVariables = queries.First().Value.Variables;
-                    helper.WOBMaxLimitReference.Manifest = manifest;
-                    RegisterToBlackboard(helper.WOBMaxLimitReference, _DWISClient, ref _WOBMaxLimitPlaceHolder);
+                    helper.WOBAdvisedMaximum.SparQLQuery = queries.First().Value.SparQL;
+                    helper.WOBAdvisedMaximum.SparQLVariables = queries.First().Value.Variables;
+                    helper.WOBAdvisedMaximum.Manifest = manifest;
+                    RegisterToBlackboard(helper.WOBAdvisedMaximum, _DWISClient, ref _WOBMaxLimitPlaceHolder);
                 }
-                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "BitTorqueMaxLimitReference");
-                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "BitTorqueMaxLimitReference", _manifestName, _companyName, _prefix + "BitTorqueMaxLimitReference");
+                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "BitTorqueAdvisedMaximum");
+                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "BitTorqueAdvisedMaximum", _manifestName, _companyName, _prefix + "BitTorqueAdvisedMaximum");
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
                     UpdateAdvisor(manifest, "Advisor", _advisorName);
-                    helper.BitTorqueMaxLimitReference.SparQLQuery = queries.First().Value.SparQL;
-                    helper.BitTorqueMaxLimitReference.SparQLVariables = queries.First().Value.Variables;
-                    helper.BitTorqueMaxLimitReference.Manifest = manifest;
-                    RegisterToBlackboard(helper.BitTorqueMaxLimitReference, _DWISClient, ref _TOBMaxLimitPlaceHolder);
+                    helper.BitTorqueAdvisedMaximum.SparQLQuery = queries.First().Value.SparQL;
+                    helper.BitTorqueAdvisedMaximum.SparQLVariables = queries.First().Value.Variables;
+                    helper.BitTorqueAdvisedMaximum.Manifest = manifest;
+                    RegisterToBlackboard(helper.BitTorqueAdvisedMaximum, _DWISClient, ref _TOBMaxLimitPlaceHolder);
                 }
-                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "DifferentialPressureMaxLimitReference");
-                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "DifferentialPressureMaxLimitReference", _manifestName, _companyName, _prefix + "DifferentialPressureMaxLimitReference");
+                queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "DifferentialPressureAdvisedMaximum");
+                manifest = GeneratorSparQLManifestFile.GetManifestFile(assembly, typeof(ADCSStandardAutoDrillerCuttingsTransportFeatureHelper).FullName, "DifferentialPressureAdvisedMaximum", _manifestName, _companyName, _prefix + "DifferentialPressureAdvisedMaximum");
                 if (queries != null && queries.Count > 0 && queries.First().Value != null && !string.IsNullOrEmpty(queries.First().Value.SparQL) && queries.First().Value.Variables != null && queries.First().Value.Variables!.Count > 0 && manifest != null)
                 {
                     UpdateAdvisor(manifest, "Advisor", _advisorName);
-                    helper.DifferentialPressureMaxLimitReference.SparQLQuery = queries.First().Value.SparQL;
-                    helper.DifferentialPressureMaxLimitReference.SparQLVariables = queries.First().Value.Variables;
-                    helper.DifferentialPressureMaxLimitReference.Manifest = manifest;
-                    RegisterToBlackboard(helper.DifferentialPressureMaxLimitReference, _DWISClient, ref _DPMaxLimitPlaceHolder);
+                    helper.DifferentialPressureAdvisedMaximum.SparQLQuery = queries.First().Value.SparQL;
+                    helper.DifferentialPressureAdvisedMaximum.SparQLVariables = queries.First().Value.Variables;
+                    helper.DifferentialPressureAdvisedMaximum.Manifest = manifest;
+                    RegisterToBlackboard(helper.DifferentialPressureAdvisedMaximum, _DWISClient, ref _DPMaxLimitPlaceHolder);
                 }
                 await Loop(cancellationToken);
             }
