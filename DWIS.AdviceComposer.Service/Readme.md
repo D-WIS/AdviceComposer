@@ -13,14 +13,14 @@ If you have created the docker image yourself, here is the procedured.
 
 The `docker run` command for windows is:
 ```
-docker run --name composer -v C:\Volumes\DWISAdviceComposerService:/home dwisadvicecomposerservice:latest
+docker run -d --name composer -v C:\Volumes\DWISAdviceComposerService:/home dwisadvicecomposerservice:latest
 ```
 where `C:\Volumes\DWISAdviceComposerService` is any folder where you would like to access the config.json file that is used to configure
 the application.
 
 and the `docker run` command for linux is:
 ```
-docker run --name composer -v /home/Volumes/DWISAdviceComposerService:/home dwisadvicecomposerservice:latest
+docker run -d --name composer -v /home/Volumes/DWISAdviceComposerService:/home dwisadvicecomposerservice:latest
 ```
 where `/home/Volumes/DWISAdviceComposerService` is any directory where you would like to access the config.json file that is used to
 configure the application.

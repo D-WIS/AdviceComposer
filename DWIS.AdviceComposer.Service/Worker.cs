@@ -260,14 +260,17 @@ namespace DWIS.AdviceComposer.Service
                 if (!string.IsNullOrEmpty(result.jsonQueryDiff))
                 {
                     var queryDiff = QueryResultsDiff.FromJsonString(result.jsonQueryDiff);
-                    if (queryDiff != null && queryDiff.Added != null && queryDiff.Added.Any())
+                    if (queryDiff != null && !string.IsNullOrEmpty(queryDiff.QueryID))
                     {
                         Entry entry = new Entry() { sparql = sparql, Key = key };
                         lock (lock_)
                         {
                             dict.Add(queryDiff.QueryID, entry);
                         }
-                        ManageQueryDiff(queryDiff);
+                        if (queryDiff.Added != null && queryDiff.Added.Any())
+                        {
+                            ManageQueryDiff(queryDiff);
+                        }
                     }
                 }
             }
@@ -287,14 +290,17 @@ namespace DWIS.AdviceComposer.Service
                 if (!string.IsNullOrEmpty(result.jsonQueryDiff))
                 {
                     var queryDiff = QueryResultsDiff.FromJsonString(result.jsonQueryDiff);
-                    if (queryDiff != null && queryDiff.Added != null && queryDiff.Added.Any())
+                    if (queryDiff != null && !string.IsNullOrEmpty(queryDiff.QueryID))
                     {
                         Entry entry = new Entry() { sparql = sparql, Key = key };
                         lock (lock_)
                         {
                             dict.Add(queryDiff.QueryID, entry);
                         }
-                        ManageQueryDiff(queryDiff);
+                        if (queryDiff.Added != null && queryDiff.Added.Any())
+                        {
+                            ManageQueryDiff(queryDiff);
+                        }
                     }
                 }
             }

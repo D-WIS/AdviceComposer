@@ -6,14 +6,14 @@ If you wish to install the docker image from dockerhub, here is the procedure.
 
 The `docker run` command for windows is:
 ```
-docker run --name advicecomposer -v C:\Volumes\DWISAdviceComposerService:/home digiwells/dwisadvicecomposerservice:stable
+docker run -d --name advicecomposer -v C:\Volumes\DWISAdviceComposerService:/home digiwells/dwisadvicecomposerservice:stable
 ```
 where `C:\Volumes\DWISAdviceComposerService` is any folder where you would like to access the config.json file that is used to configure
 the application.
 
 and the `docker run` command for linux is:
 ```
-docker run --name advicecomposer -v /home/Volumes/DWISAdviceComposerService:/home digiwells/dwisadvicecomposerservice:stable
+docker run -d --name advicecomposer -v /home/Volumes/DWISAdviceComposerService:/home digiwells/dwisadvicecomposerservice:stable
 ```
 where `/home/Volumes/DWISAdviceComposerService` is any directory where you would like to access the config.json file that is used to
 configure the application.
@@ -23,14 +23,14 @@ If you have created the docker image yourself, here is the procedured.
 
 The `docker run` command for windows is:
 ```
-docker run --name advicecomposer -v C:\Volumes\DWISAdviceComposerService:/home dwisadvicecomposerservice:latest
+docker run -d --name advicecomposer -v C:\Volumes\DWISAdviceComposerService:/home dwisadvicecomposerservice:latest
 ```
 where `C:\Volumes\DWISAdviceComposerService` is any folder where you would like to access the config.json file that is used to configure
 the application.
 
 and the `docker run` command for linux is:
 ```
-docker run --name advicecomposer -v /home/Volumes/DWISAdviceComposerService:/home dwisadvicecomposerservice:latest
+docker run -d --name advicecomposer -v /home/Volumes/DWISAdviceComposerService:/home dwisadvicecomposerservice:latest
 ```
 where `/home/Volumes/DWISAdviceComposerService` is any directory where you would like to access the config.json file that is used to
 configure the application.
