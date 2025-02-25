@@ -1246,12 +1246,14 @@ namespace DWIS.AdviceComposer.Service
                 measuredValue != null &&
                 measuredValue.LiveValues != null &&
                 measuredValue.LiveValues.Values != null &&
+                measuredValue.LiveValues.Values.Any() &&
                 measuredValue.LiveValues.Values.First() != null &&
                 measuredValue.LiveValues.Values.First().val != null &&
                 measuredValue.LiveValues.Values.First().val is double mVal &&
                 maxRateOfChange != null &&
                 maxRateOfChange.LiveValues != null &&
                 maxRateOfChange.LiveValues.Values != null &&
+                maxRateOfChange.LiveValues.Values.Any() &&
                 maxRateOfChange.LiveValues.Values.First() != null &&
                 maxRateOfChange.LiveValues.Values.First().val != null &&
                 maxRateOfChange.LiveValues.Values.First().val is double mROC &&
@@ -1283,6 +1285,14 @@ namespace DWIS.AdviceComposer.Service
                                 cf.ControllerDatas[i].MeasuredValue = mVal;
                                 cf.ControllerDatas[i].SetPointRateOfChange = mROC;
                                 cf.ControllerDatas[i].SetPointDestinationQueryResult = setPointDestination;
+                                /*
+                                string features = string.Empty;
+                                foreach (var feature in cf.Features)
+                                {
+                                    features += feature.ToString() + " ";
+                                }
+                                _logger?.LogInformation("Received Set-point: " + dval + " with features: " + features);
+                                */
                             }
                         }
                     }
@@ -1300,6 +1310,7 @@ namespace DWIS.AdviceComposer.Service
                 maxRateOfChange != null &&
                 maxRateOfChange.LiveValues != null &&
                 maxRateOfChange.LiveValues.Values != null &&
+                maxRateOfChange.LiveValues.Values.Any() &&
                 maxRateOfChange.LiveValues.Values.First() != null &&
                 maxRateOfChange.LiveValues.Values.First().val != null &&
                 maxRateOfChange.LiveValues.Values.First().val is double mROC &&
@@ -1337,6 +1348,14 @@ namespace DWIS.AdviceComposer.Service
                                 cf.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation = dval;
                                 cf.ControllerDatas[i].ControllerLimitDatas[j].LimitRateOfChange = mROC;
                                 cf.ControllerDatas[i].ControllerLimitDatas[j].LimitDestinationQueryResult = maxLimitDestination;
+                                /*
+                                string features = string.Empty;
+                                foreach (var feature in cf.Features)
+                                {
+                                    features += feature.ToString() + " ";
+                                }
+                                _logger?.LogInformation("Received Limit: " + dval + " with features: " + features);
+                                */
                             }
                         }
                     }
