@@ -10,14 +10,14 @@ If you have created the docker image yourself, here is the procedured.
 
 The `docker run` command for windows is:
 ```
-docker run --name schedulerropcontext -v C:\Volumes\DWISSchedulerROPContext:/home dwisadvicecomposerschedulerropcontexttest:latest
+docker run -d --name schedulerropcontext -v C:\Volumes\DWISSchedulerROPContext:/home dwisadvicecomposerschedulerropcontexttest:latest
 ```
 where `C:\Volumes\DWISSchedulerROPContext` is any folder where you would like to access the config.json file that is used to configure
 the application.
 
 and the `docker run` command for linux is:
 ```
-docker run --name schedulerropcontext -v /home/Volumes/DWISSchedulerROPContext:/home dwisadvicecomposerschedulerropcontexttest:latest
+docker run -d --name schedulerropcontext -v /home/Volumes/DWISSchedulerROPContext:/home dwisadvicecomposerschedulerropcontexttest:latest
 ```
 where `/home/Volumes/DWISSchedulerROPContext` is any directory where you would like to access the config.json file that is used to
 configure the application.

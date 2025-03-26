@@ -8,11 +8,20 @@ using OSDC.DotnetLibraries.Drilling.DrillingProperties;
 using System.Reflection;
 using DWIS.Scheduler.Model;
 using DWIS.Vocabulary.Schemas;
+using DWIS.MicroState.Model;
+using System.Diagnostics.Eventing.Reader;
 
 namespace DWIS.AdviceComposer.SchedulerROPContext.Test
 {
     public class Worker : BackgroundService
     {
+        private static JsonSerializerSettings _JSonSerializationSettings = new JsonSerializerSettings
+        {
+            TypeNameHandling = TypeNameHandling.Objects,
+            Formatting = Formatting.Indented
+        };
+        private object lock_ = new object();
+
         private ILogger<DWISClientOPCF>? _loggerDWISClient;
         private ILogger<Worker>? _logger;
         private IOPCUADWISClient? _DWISClient = null;
@@ -27,6 +36,8 @@ namespace DWIS.AdviceComposer.SchedulerROPContext.Test
         private List<AcquiredSignals> placeHolders_ = new List<AcquiredSignals>();
 
         private static string _ADCSStandardInterfaceSubscriptionName = "ADCSStandardInterfaceSubscription";
+        private Dictionary<string, Entry> RegisteredQueries { get; set; } = new Dictionary<string, Entry>();
+        private Guid MicroStateID { get; set; } = Guid.Empty;
 
         public Worker(ILogger<Worker>? logger, ILogger<DWISClientOPCF>? loggerDWISClient)
         {
@@ -203,10 +214,134 @@ namespace DWIS.AdviceComposer.SchedulerROPContext.Test
                         }
                     }
                 }
+                if (_DWISClient != null && _DWISClient.Connected)
+                {
+                    MicroStateID = Guid.NewGuid();
+                    RegisterQuery(new MicroStates(), RegisteredQueries, MicroStateID);
+                }
                 await Loop(cancellationToken);
             }
         }
+        private void RegisterQuery(MicroStates? microStates, Dictionary<string, Entry> dict, Guid key)
+        {
+            if (_DWISClient != null && _DWISClient.Connected && microStates != null)
+            {
+                Type type = microStates.GetType();
+                Assembly assembly = type.Assembly;
+                Dictionary<string, QuerySpecification>? queries = GeneratorSparQLManifestFile.GetSparQLQueries(assembly, type.FullName);
+                if (queries != null &&
+                    queries.Count > 0 &&
+                    queries.First().Value != null &&
+                    !string.IsNullOrEmpty(queries.First().Value.SparQL) &&
+                    queries.First().Value.Variables != null &&
+                    queries.First().Value.Variables!.Count > 0)
+                {
+                    string sparql = queries.First().Value.SparQL!;
+                    var result = _DWISClient.RegisterQuery(sparql, RegisterQueryCallbackSingleVariable);
 
+                    if (!string.IsNullOrEmpty(result.jsonQueryDiff))
+                    {
+                        var queryDiff = QueryResultsDiff.FromJsonString(result.jsonQueryDiff);
+                        if (queryDiff != null && !string.IsNullOrEmpty(queryDiff.QueryID) && RegisteredQueries != null)
+                        {
+                            lock (lock_)
+                            {
+                                if (!RegisteredQueries.ContainsKey(queryDiff.QueryID))
+                                {
+                                    Entry entry = new Entry() { sparql = sparql, Key = key };
+                                    RegisteredQueries.Add(queryDiff.QueryID, entry);
+                                }
+                            }
+                            if (queryDiff.Added != null && queryDiff.Added.Any())
+                            {
+                                ManageQueryDiff(queryDiff);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        private void RegisterQueryCallbackSingleVariable(QueryResultsDiff queryDiff)
+        {
+            _logger?.LogInformation("Callback for register query");
+            if (_DWISClient != null && _DWISClient.Connected && queryDiff != null)
+            {
+                ManageQueryDiff(queryDiff);
+            }
+        }
+        private void ManageQueryDiff(QueryResultsDiff queryDiff)
+        {
+            lock (lock_)
+            {
+                if (RegisteredQueries.ContainsKey(queryDiff.QueryID))
+                {
+                    var entry = RegisteredQueries[queryDiff.QueryID];
+                    if (entry.Results == null)
+                    {
+                        entry.Results = new List<QueryResultRow>();
+                    }
+                    if (queryDiff.Removed != null)
+                    {
+                        foreach (QueryResultRow row in queryDiff.Removed)
+                        {
+                            entry.Results.Remove(row);
+                        }
+                    }
+                    if (queryDiff.Added != null)
+                    {
+                        foreach (QueryResultRow row in queryDiff.Added)
+                        {
+                            entry.Results.Add(row);
+                        }
+                    }
+                    // this code supposes that the first variable of the sparql query is an OPC-UA live variable
+                    List<NodeIdentifier> nodes = new List<NodeIdentifier>();
+                    foreach (var row in entry.Results)
+                    {
+                        if (row != null && row.Items != null && row.Items.Count > 0)
+                        {
+                            NodeIdentifier node = row.Items[0]; // this is where it is supposed that the first variable of the query is an OPC-UA live variable
+                            if (node != null)
+                            {
+                                if (!nodes.Exists(n => n.ID == node.ID && n.NameSpace == node.NameSpace))
+                                {
+                                    nodes.Add(node);
+                                }
+                            }
+                        }
+                    }
+                    if (_DWISClient != null)
+                    {
+                        foreach (NodeIdentifier node in nodes)
+                        {
+                            if (!entry.LiveValues.Values.Any(v => v.ns == node.NameSpace && v.id == node.ID))
+                            {
+                                Guid guid = Guid.NewGuid();
+                                LiveValue liveValue = new(node.NameSpace, node.ID, null);
+                                entry.LiveValues.Add(guid, liveValue);
+                                _DWISClient.Subscribe(entry, CallbackOPCUA, new (string, string, object)[] { new(liveValue.ns, liveValue.id, guid) });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private void CallbackOPCUA(object subscriptionData, UADataChange[] changes)
+        {
+            if (subscriptionData != null && subscriptionData is Entry entry && entry.LiveValues != null && changes != null && changes.Length > 0)
+            {
+                UADataChange dataChange = changes[0];
+                if (dataChange != null && entry.LiveValues.Count > 0)
+                {
+                    LiveValue? lv = entry.LiveValues.First().Value;
+                    if (lv != null)
+                    {
+                        lv.val = dataChange.Value;
+                    }
+                }
+            }
+        }
         private void CapabilityDescriptionCallBack(QueryResultsDiff resultsDiff)
         {
             _logger?.LogInformation("Callback for capability descriptions");
@@ -237,7 +372,7 @@ namespace DWIS.AdviceComposer.SchedulerROPContext.Test
             QueryResult? enablePlaceHolder = null;
             PeriodicTimer timer = new PeriodicTimer(_loopSpan);
             DateTime start = DateTime.UtcNow;
-            int previousFlipFlop = 1;
+            bool? previousInsideHardFormation = null;
             while (await timer.WaitForNextTickAsync(cancellationToken))
             {
                 if (placeHolders_ != null && autodriller == null)
@@ -249,8 +384,8 @@ namespace DWIS.AdviceComposer.SchedulerROPContext.Test
                         {
                             foreach (var signal in signals)
                             {
-                                string? json = signal.GetValue<string>();
-                                if (!string.IsNullOrEmpty(json))
+                                string? js = signal.GetValue<string>();
+                                if (!string.IsNullOrEmpty(js))
                                 {
                                     try
                                     {
@@ -259,7 +394,7 @@ namespace DWIS.AdviceComposer.SchedulerROPContext.Test
                                             TypeNameHandling = TypeNameHandling.Objects,
                                             Formatting = Formatting.Indented
                                         };
-                                        ActivableFunction? activableFunction = Newtonsoft.Json.JsonConvert.DeserializeObject<ActivableFunction>(json, settings);
+                                        ActivableFunction? activableFunction = Newtonsoft.Json.JsonConvert.DeserializeObject<ActivableFunction>(js, settings);
                                         if (activableFunction != null && activableFunction is ADCSStandardAutoDriller autoDriller)
                                         {
                                             // read any information that may be useful for the advisor about the ADCS actual capabilities
@@ -288,10 +423,50 @@ namespace DWIS.AdviceComposer.SchedulerROPContext.Test
                         RegisterToBlackboard(autodriller.ContextSemanticInfo, _DWISClient, ref _contextPlaceHolder);
                     }
                 }
+                string json = string.Empty;
+                lock (lock_)
+                {
+                    if (RegisteredQueries != null && MicroStateID != Guid.Empty)
+                    {
+                        Entry? entry = FindEntry(MicroStateID);
+                        if (entry != null)
+                        {
+                            if (entry.LiveValues != null && entry.LiveValues.Count > 0)
+                            {
+                                LiveValue? lv = entry.LiveValues.First().Value;
+                                if (lv != null)
+                                {
+                                    if (lv.val != null && lv.val is string sval)
+                                    {
+                                        json = sval;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                MicroStates? microStates = null;
+                if (!string.IsNullOrEmpty(json))
+                {
+                    try
+                    {
+                        microStates = JsonConvert.DeserializeObject<MicroStates>(json, _JSonSerializationSettings);
+                    }
+                    catch (Exception e)
+                    {
+
+                    }
+                }
+                bool insideHardFormation = false;
+                if (microStates != null)
+                {
+                    byte changeFormation = microStates.Value.GetValue(MicroStateIndex.FormationChange);
+                    byte hardFormation = microStates.Value.GetValue(MicroStateIndex.InsideHardStringer);
+                    insideHardFormation = hardFormation == 2;
+                }
                 if (_DWISClient != null && _contextPlaceHolder != null && _contextPlaceHolder.Count > 0 && _contextPlaceHolder[0] != null && _contextPlaceHolder[0].Count > 0)
                 {
-                    int flipFlop = (int)(elapsed.TotalSeconds / Configuration.ContextChangePeriod.TotalSeconds) % 2;
-                    if (flipFlop != previousFlipFlop)
+                    if (insideHardFormation != previousInsideHardFormation)
                     {
                         DWISContext context = new DWISContext();
                         if (context.CapabilityPreferences == null)
@@ -299,22 +474,22 @@ namespace DWIS.AdviceComposer.SchedulerROPContext.Test
                             context.CapabilityPreferences = new List<Nouns.Enum>();
                         }
                         context.CapabilityPreferences.Clear();
-                        if (flipFlop == 0)
+                        if (insideHardFormation)
                         {
                             context.CapabilityPreferences.Add(Nouns.Enum.RigActionPlanFeature);
-                            context.CapabilityPreferences.Add(Nouns.Enum.CuttingsTransportFeature);
+                            context.CapabilityPreferences.Add(Nouns.Enum.DrillStemVibrationFeature);
                         }
                         else
                         {
                             context.CapabilityPreferences.Add(Nouns.Enum.RigActionPlanFeature);
-                            context.CapabilityPreferences.Add(Nouns.Enum.DrillStemVibrationFeature);
+                            context.CapabilityPreferences.Add(Nouns.Enum.CuttingsTransportFeature);
                         }
                         var settings = new JsonSerializerSettings
                         {
                             TypeNameHandling = TypeNameHandling.Objects,
                             Formatting = Formatting.Indented
                         };
-                        string json = Newtonsoft.Json.JsonConvert.SerializeObject(context, settings);
+                        json = Newtonsoft.Json.JsonConvert.SerializeObject(context, settings);
                         if (!string.IsNullOrEmpty(json))
                         {
                             NodeIdentifier id = _contextPlaceHolder[0][0];
@@ -338,10 +513,26 @@ namespace DWIS.AdviceComposer.SchedulerROPContext.Test
                                 }
                             }
                         }
-                        previousFlipFlop = flipFlop;
+                        previousInsideHardFormation = insideHardFormation;
                     }
                 }
             }
+        }
+        private Entry? FindEntry(Guid id)
+        {
+            Entry? entry = null;
+            if (RegisteredQueries != null)
+            {
+                foreach (var kvp in RegisteredQueries)
+                {
+                    if (kvp.Value.Key == id)
+                    {
+                        entry = kvp.Value;
+                        break;
+                    }
+                }
+            }
+            return entry;
         }
     }
 }

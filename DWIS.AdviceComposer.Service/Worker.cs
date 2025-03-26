@@ -14,6 +14,7 @@ using System;
 using System.Reflection;
 using OSDC.DotnetLibraries.Drilling.DrillingProperties;
 using Opc.Ua;
+using DWIS.RigOS.Capabilities.Procedure.Model;
 
 namespace DWIS.AdviceComposer.Service
 {
@@ -28,6 +29,7 @@ namespace DWIS.AdviceComposer.Service
         private Dictionary<Guid, QueryResult> PlaceHolders { get; set; } = new Dictionary<Guid, QueryResult>();
 
         private Dictionary<Guid, (ControlFunctionData src, ControllerFunctionData? last, DateTime lastTimeStamp)> ControlFunctionDictionary { get; set; } = new Dictionary<Guid, (ControlFunctionData src, ControllerFunctionData? last, DateTime lastTimeStamp)>();
+        private Dictionary<Guid, (ProcedureFunctionData src, ProcedureFunctionData? last, DateTime lastTimeStamp)> ProcedureFunctionDictionary { get; set; } = new Dictionary<Guid, (ProcedureFunctionData src, ProcedureFunctionData? last, DateTime lastTimeStamp)>();
 
         private Dictionary<string, Entry> RegisteredQueries { get; set; } = new Dictionary<string, Entry>();
 
@@ -187,8 +189,33 @@ namespace DWIS.AdviceComposer.Service
                 }
             }
         }
-
         private void CallbackOPCUA(object subscriptionData, UADataChange[] changes)
+        {
+            if (subscriptionData != null && subscriptionData is Entry entry && entry.LiveValues != null && changes != null && changes.Length > 0)
+            {
+                UADataChange dataChange = changes[0];
+                if (dataChange != null && entry.LiveValues.Count > 0)
+                {
+                    if (dataChange.UserData != null && dataChange.UserData is Guid guid)
+                    {
+                        if (entry.LiveValues.ContainsKey(guid))
+                        {
+                            entry.LiveValues[guid].val = dataChange.Value;
+                        }
+                    }
+                    else
+                    {
+                        LiveValue? lv = entry.LiveValues.First().Value;
+                        if (lv != null)
+                        {
+                            lv.val = dataChange.Value;
+                        }
+                    }
+                }
+            }
+        }
+
+        private void CallbackOPCUA2(object subscriptionData, UADataChange[] changes)
         {
             if (subscriptionData != null && subscriptionData is Entry entry && entry.LiveValues != null && changes != null && changes.Length > 0)
             {
@@ -431,6 +458,7 @@ namespace DWIS.AdviceComposer.Service
             {
                 ManageActivableFunctionList();
                 ManageControllerFunctionsSetPointsLimitsAndParameters();
+                ManageProcedureParameters();
             }
         }
 
@@ -467,6 +495,10 @@ namespace DWIS.AdviceComposer.Service
                                             {
                                                 ManageControllerFunction(controllerFunction, activableFunction);
                                             }
+                                            else if (activableFunction is ProcedureFunction procedureFunction)
+                                            {
+                                                ManageProcedureFunction(procedureFunction, activableFunction);
+                                            }
                                         }
                                     }
                                     catch (Exception e)
@@ -480,6 +512,60 @@ namespace DWIS.AdviceComposer.Service
                 }
             }
         }
+        private void ManageProcedureFunction(ProcedureFunction procedureFunction, ActivableFunction activableFunction)
+        {
+            bool found = false;
+            foreach (var kvp1 in ProcedureFunctionDictionary)
+            {
+                if (kvp1.Value.src != null && kvp1.Value.src.ProcedureFunction != null && !string.IsNullOrEmpty(kvp1.Value.src.ProcedureFunction.Name) && kvp1.Value.src.ProcedureFunction.Name.Equals(activableFunction.Name))
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                Guid procedureFunctionID = Guid.NewGuid();
+                ProcedureFunctionData procedureFunctionData = new ProcedureFunctionData();
+                procedureFunctionData.ProcedureFunction = procedureFunction;
+                ProcedureFunctionDictionary.Add(procedureFunctionID, new(procedureFunctionData, null, DateTime.MinValue));
+
+                if (procedureFunction.ContextSemanticInfo != null)
+                {
+                    if (string.IsNullOrEmpty(procedureFunction.ContextSemanticInfo.SparQLQuery) || procedureFunction.ContextSemanticInfo.SparQLVariables == null)
+                    {
+                        procedureFunction.FillInSparqlQueriesAndManifests();
+                    }
+                    procedureFunctionData.ContextID = Guid.NewGuid();
+                    RegisterQuery(procedureFunction.ContextSemanticInfo, RegisteredQueries, procedureFunctionData.ContextID);
+                }
+                if (procedureFunction.Parameters != null)
+                {
+                    if (string.IsNullOrEmpty(procedureFunction.Parameters.SparQLQuery) || procedureFunction.Parameters.SparQLVariables == null)
+                    {
+                        procedureFunction.FillInSparqlQueriesAndManifests();
+                    }
+                    procedureFunctionData.ParametersID = Guid.NewGuid();
+                    RegisterQueryAlternate(procedureFunction.Parameters, RegisteredQueries, procedureFunctionData.ParametersID);
+                }
+                if (procedureFunction.Parameters != null &&
+                    !string.IsNullOrEmpty(procedureFunction.Parameters.SparQLQuery))
+                {
+                    if (string.IsNullOrEmpty(procedureFunction.Parameters.SparQLQuery) || procedureFunction.Parameters.SparQLVariables == null)
+                    {
+                        procedureFunction.FillInSparqlQueriesAndManifests();
+                    }
+                    QueryResult? result = null;
+                    RegisterToBlackboard(procedureFunction.Parameters, _DWISClient, ref result);
+                    if (result != null)
+                    {
+                        procedureFunctionData.ParametersDestinationID = Guid.NewGuid();
+                        PlaceHolders.Add(procedureFunctionData.ParametersDestinationID, result);
+                    }
+                }                
+            }
+        }
+
         private void ManageControllerFunction(ControllerFunction controllerFunction, ActivableFunction activableFunction)
         {
             bool found = false;
@@ -500,19 +586,29 @@ namespace DWIS.AdviceComposer.Service
 
                 if (controllerFunction.ContextSemanticInfo != null)
                 {
+                    if (string.IsNullOrEmpty(controllerFunction.ContextSemanticInfo.SparQLQuery) || controllerFunction.ContextSemanticInfo.SparQLVariables == null)
+                    {
+                        controllerFunction.FillInSparqlQueriesAndManifests();
+                    }
                     controlFunctionData.ContextID = Guid.NewGuid();
                     RegisterQuery(controllerFunction.ContextSemanticInfo, RegisteredQueries, controlFunctionData.ContextID);
                 }
                 if (controllerFunction.Parameters != null)
                 {
+                    if (string.IsNullOrEmpty(controllerFunction.Parameters.SparQLAlternateQuery) || controllerFunction.Parameters.SparQLAlternateVariables == null)
+                    {
+                        controllerFunction.FillInSparqlQueriesAndManifests();
+                    }
                     controlFunctionData.ParametersID = Guid.NewGuid();
                     RegisterQueryAlternate(controllerFunction.Parameters, RegisteredQueries, controlFunctionData.ParametersID);
                 }
                 if (controllerFunction.Parameters != null &&
-                    !string.IsNullOrEmpty(controllerFunction.Parameters.SparQLQuery) &&
-                    controllerFunction.Parameters.SparQLVariables != null &&
-                    controllerFunction.Parameters.SparQLVariables.Count > 0)
+                    !string.IsNullOrEmpty(controllerFunction.Parameters.SparQLQuery))
                 {
+                    if (string.IsNullOrEmpty(controllerFunction.Parameters.SparQLQuery) || controllerFunction.Parameters.SparQLVariables == null)
+                    {
+                        controllerFunction.FillInSparqlQueriesAndManifests();
+                    }
                     QueryResult? result = null;
                     RegisterToBlackboard(controllerFunction.Parameters, _DWISClient, ref result);
                     if (result != null)
@@ -679,7 +775,114 @@ namespace DWIS.AdviceComposer.Service
                 }
             }
         }
-
+        private void ManageProcedureParameters()
+        {
+            if (ProcedureFunctionDictionary != null && PlaceHolders != null && RegisteredQueries != null)
+            {
+                foreach (var kvp in ProcedureFunctionDictionary)
+                {
+                    if (kvp.Value.src != null)
+                    {
+                        Entry? entryContext = null;
+                        if (kvp.Value.src.ContextID != Guid.Empty)
+                        {
+                            entryContext = GetEntry(kvp.Value.src.ContextID);
+                        }
+                        if (entryContext != null &&
+                            entryContext.LiveValues != null &&
+                            entryContext.LiveValues.Count > 0)
+                        {
+                            Dictionary<string, ProcedureData> availableDatas = new Dictionary<string, ProcedureData>();
+                            foreach (var kvp2 in entryContext.LiveValues)
+                            {
+                                if (kvp2.Value != null && kvp2.Value.val != null && kvp2.Value.val is string json)
+                                {
+                                    var settings = new JsonSerializerSettings
+                                    {
+                                        TypeNameHandling = TypeNameHandling.Objects,
+                                        Formatting = Formatting.Indented
+                                    };
+                                    try
+                                    {
+                                        DWISContext? context = JsonConvert.DeserializeObject<DWISContext>(json, settings);
+                                        if (context != null)
+                                        {
+                                            List<Vocabulary.Schemas.Nouns.Enum> features = new List<Vocabulary.Schemas.Nouns.Enum>();
+                                            if (context.CapabilityPreferences != null)
+                                            {
+                                                foreach (var feature in context.CapabilityPreferences)
+                                                {
+                                                    features.Add(feature);
+                                                }
+                                            }
+                                            ManageParameters(kvp.Value.src, availableDatas);
+                                            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)> possibilities = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)>();
+                                            SelectProcedureFunctionData(availableDatas, features, possibilities);
+                                            ProcedureData? chosenProcedureFunction = null;
+                                            if (possibilities.Count > 0)
+                                            {
+                                                List<Vocabulary.Schemas.Nouns.Enum> fs = possibilities[0].features;
+                                                if (fs != null)
+                                                {
+                                                    List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)> withSameFeatures = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)>();
+                                                    foreach (var wol in possibilities)
+                                                    {
+                                                        if (wol.features != null)
+                                                        {
+                                                            bool eq = wol.features.Count == fs.Count;
+                                                            if (eq)
+                                                            {
+                                                                foreach (var f in fs)
+                                                                {
+                                                                    eq &= wol.features.Contains(f);
+                                                                    if (!eq)
+                                                                    {
+                                                                        break;
+                                                                    }
+                                                                }
+                                                            }
+                                                            if (eq)
+                                                            {
+                                                                withSameFeatures.Add(wol);
+                                                            }
+                                                        }
+                                                    }
+                                                    if (withSameFeatures.Count > 0)
+                                                    {
+                                                        withSameFeatures = withSameFeatures.OrderByDescending(wol => wol.Item2).ToList();
+                                                        chosenProcedureFunction = withSameFeatures[0].data;
+                                                    }
+                                                }
+                                                if (chosenProcedureFunction == null)
+                                                {
+                                                    chosenProcedureFunction = possibilities[0].data;
+                                                }
+                                            }
+                                            if (possibilities.Count > 0 && chosenProcedureFunction == null)
+                                            {
+                                                chosenProcedureFunction = possibilities[0].data;
+                                            }
+                                            if (chosenProcedureFunction != null)
+                                            {
+                                                if (chosenProcedureFunction.Parameters != null && chosenProcedureFunction.ParametersDestinationQueryResult != null)
+                                                {
+                                                    SendValue(chosenProcedureFunction.ParametersDestinationQueryResult, chosenProcedureFunction.Parameters);
+                                                }
+                                            }
+                                            break;
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        _logger?.LogError(ex.ToString());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         private void ManageControllerFunctionsSetPointsLimitsAndParameters()
         {
             if (ControlFunctionDictionary != null && PlaceHolders != null && RegisteredQueries != null)
@@ -968,7 +1171,33 @@ namespace DWIS.AdviceComposer.Service
             }
             return queryResult;
         }
-
+        private void SelectProcedureFunctionData(Dictionary<string, ProcedureData> dict, List<Vocabulary.Schemas.Nouns.Enum> features, List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)>? possibilities)
+        {
+            if (dict != null && features != null && possibilities != null)
+            {
+                List<(List<Vocabulary.Schemas.Nouns.Enum> features, ProcedureData data)> results = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, ProcedureData data)>();
+                foreach (var kvp in dict)
+                {
+                    if (kvp.Value != null && kvp.Value.Features != null)
+                    {
+                        ProcedureData procedureData = kvp.Value;
+                        List<Vocabulary.Schemas.Nouns.Enum> intersect = kvp.Value.Features.Intersect(features).ToList();
+                        if (features.Count == 0 || (intersect != null && intersect.Count > 0))
+                        {
+                            results.Add((intersect, procedureData));
+                        }
+                    }
+                }
+                if (results.Count > 0)
+                {
+                    foreach (var res in results)
+                    {
+                        possibilities.Add(new(res.features, 0, res.data));
+                        possibilities = possibilities.OrderByDescending(x => x.features.Count).ToList();
+                    }
+                }
+            }
+        }
         private void SelectControllerFunctionData(Dictionary<string, ControllerFunctionData> dict, List<Vocabulary.Schemas.Nouns.Enum> features, List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)>? onlyLimits, List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)>? withSetPoints)
         {
             if (dict != null && features != null && onlyLimits != null && withSetPoints != null)
@@ -980,7 +1209,7 @@ namespace DWIS.AdviceComposer.Service
                     {
                         ControllerFunctionData controllerFunctionData = kvp.Value;
                         List<Vocabulary.Schemas.Nouns.Enum> intersect = kvp.Value.Features.Intersect(features).ToList();
-                        if (intersect != null && intersect.Count > 0)
+                        if (features.Count == 0 || (intersect != null && intersect.Count > 0))
                         {
                             results.Add((intersect, controllerFunctionData));
                         }
@@ -1055,7 +1284,19 @@ namespace DWIS.AdviceComposer.Service
                 }
             }
         }
-
+        private void AddEmpty(Dictionary<string, ProcedureData> dict, string advisorName, ProcedureFunctionData sample)
+        {
+            if (dict != null && !string.IsNullOrEmpty(advisorName) && sample != null)
+            {
+                ProcedureData empty = new ProcedureData();
+                dict.Add(advisorName, empty);
+                empty.AdvisorName = advisorName;
+                if (empty.Features == null)
+                {
+                    empty.Features = new List<Vocabulary.Schemas.Nouns.Enum>();
+                }
+            }
+        }
         private void AddEmpty(Dictionary<string, ControllerFunctionData> dict, string advisorName, ControlFunctionData sample)
         {
             if (dict != null && !string.IsNullOrEmpty(advisorName) && sample != null)
@@ -1112,7 +1353,13 @@ namespace DWIS.AdviceComposer.Service
             }
             return val;
         }
-
+        private void AddFeature(ProcedureData? cf, Vocabulary.Schemas.Nouns.Enum f)
+        {
+            if (cf != null && cf.Features != null && !cf.Features.Contains(f))
+            {
+                cf.Features.Add(f);
+            }
+        }
         private void AddFeature(ControllerFunctionData? cf, Vocabulary.Schemas.Nouns.Enum f)
         {
             if (cf != null && cf.Features != null && !cf.Features.Contains(f))
@@ -1120,7 +1367,6 @@ namespace DWIS.AdviceComposer.Service
                 cf.Features.Add(f);
             }
         }
-
         private void FindAvailableDatas(Dictionary<string, ControllerFunctionData> availableDatas, List<ControlData> controlDatas, ControlFunctionData controlFunctionData)
         {
             for (int i = 0; i < controlDatas.Count; i++)
@@ -1150,6 +1396,45 @@ namespace DWIS.AdviceComposer.Service
                                 v.MaxRateOfChangeID != Guid.Empty)
                             {
                                 ManageLimit(v, controlFunctionData, i, j, availableDatas);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        private void ManageParameters(ProcedureFunctionData procedureFunctionData, Dictionary<string, ProcedureData> availableDatas)
+        {
+            Entry? parametersSource = GetEntry(procedureFunctionData.ParametersID);
+            QueryResult? parametersDestination = GetQueryResult(procedureFunctionData.ParametersDestinationID);
+            if (parametersSource != null &&
+                parametersSource.Results != null &&
+                parametersSource.LiveValues != null &&
+                parametersDestination != null)
+            {
+                foreach (var res in parametersSource.Results)
+                {
+                    if (res != null && res.Count >= 3 &&
+                        res[0] != null &&
+                        res[1] != null &&
+                        res[2] != null &&
+                        !string.IsNullOrEmpty(res[0].ID) &&
+                        !string.IsNullOrEmpty(res[1].ID) &&
+                        !string.IsNullOrEmpty(res[2].ID) &&
+                        Enum.TryParse(res[2].ID, out Vocabulary.Schemas.Nouns.Enum f))
+                    {
+                        if (!availableDatas.ContainsKey(res[1].ID))
+                        {
+                            AddEmpty(availableDatas, res[1].ID, procedureFunctionData);
+                        }
+                        var cf = availableDatas[res[1].ID];
+                        AddFeature(cf, f);
+                        if (cf != null)
+                        {
+                            object? val = SearchValue(parametersSource.LiveValues, res[0]);
+                            if (val != null)
+                            {
+                                cf.Parameters = val;
+                                cf.ParametersDestinationQueryResult = parametersDestination;
                             }
                         }
                     }
