@@ -182,6 +182,7 @@ namespace DWIS.AdviceComposer.Service
                                 Guid guid = Guid.NewGuid();
                                 LiveValue liveValue = new(node.NameSpace, node.ID, null);
                                 entry.LiveValues.Add(guid, liveValue);
+                                Entry userDataEntry = new Entry();
                                 _DWISClient.Subscribe(entry, CallbackOPCUA, new (string, string, object)[] { new(liveValue.ns, liveValue.id, guid) });
                             }
                         }
@@ -203,13 +204,8 @@ namespace DWIS.AdviceComposer.Service
                             entry.LiveValues[guid].val = dataChange.Value;
                         }
                     }
-                    else
+                    else 
                     {
-                        LiveValue? lv = entry.LiveValues.First().Value;
-                        if (lv != null)
-                        {
-                            lv.val = dataChange.Value;
-                        }
                     }
                 }
             }
