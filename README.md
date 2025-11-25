@@ -1,45 +1,34 @@
 # AdviceComposer
-Perform the composition of multiple advices
 
-## Getting started (external)
-If you wish to install the docker image from dockerhub, here is the procedure.
+.NET 8 service and supporting simulators that compose multiple DWIS/ADCS advices into unified controller/procedure parameters, limits (SOE), and FDIR inputs over the DWIS OPC UA blackboard.
 
-The `docker run` command for windows is:
-```
-docker run -d --name advicecomposer -v C:\Volumes\DWISAdviceComposerService:/home digiwells/dwisadvicecomposerservice:stable
-```
-where `C:\Volumes\DWISAdviceComposerService` is any folder where you would like to access the config.json file that is used to configure
-the application.
+## Repository layout
+- `DWIS.AdviceComposer.sln` — solution for service, model, and advisor simulators.
+- `DWIS.AdviceComposer.Service/` — background service that reads advisory inputs from the DWIS blackboard, reconciles controller/procedure/SOE/FDIR parameters, and publishes composed outputs. Dockerfile and config template included.
+- `DWIS.AdviceComposer.Model/` — shared types (procedure/controller data) and helpers (ADCS standard interface SparQL manifest loader).
+- Advisor simulators (generate sinusoidal setpoints/limits with feature semantics):
+  - `DWIS.AdviceComposer.ROPAdvisorWithCuttingsTransportFeature.Test/`
+  - `DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test/`
+  - `DWIS.AdviceComposer.ROPAdvisorWithRigActionPlanFeature.Test/`
+- Context driver: `DWIS.AdviceComposer.SchedulerROPContext.Test/` alternates AutoDriller feature contexts (rig action plan vs cuttings/vibration) on a configurable period.
+- `home/config.json` — sample service configuration (loop duration and OPC UA URL).
+- `.github/workflows/` — build/pack model and build/push interpreter images.
 
-and the `docker run` command for linux is:
-```
-docker run -d --name advicecomposer -v /home/Volumes/DWISAdviceComposerService:/home digiwells/dwisadvicecomposerservice:stable
-```
-where `/home/Volumes/DWISAdviceComposerService` is any directory where you would like to access the config.json file that is used to
-configure the application.
+## Build
+- `dotnet build DWIS.AdviceComposer.sln`
 
-## Getting started (internal)
-If you have created the docker image yourself, here is the procedured.
+## Run (service)
+- Local: `dotnet run --project DWIS.AdviceComposer.Service` (ensure `config.json` is available/mounted at `/home`).
+- Docker (stable image):
+  - Windows example: `docker run -d --name advicecomposer -v C:\Volumes\DWISAdviceComposerService:/home digiwells/dwisadvicecomposerservice:stable`
+  - Linux example: `docker run -d --name advicecomposer -v /home/Volumes/DWISAdviceComposerService:/home digiwells/dwisadvicecomposerservice:stable`
 
-The `docker run` command for windows is:
-```
-docker run -d --name advicecomposer -v C:\Volumes\DWISAdviceComposerService:/home dwisadvicecomposerservice:latest
-```
-where `C:\Volumes\DWISAdviceComposerService` is any folder where you would like to access the config.json file that is used to configure
-the application.
+## Configuration (service)
+`/home/config.json` keys observed:
+- `LoopDuration` (TimeSpan, default 1s)
+- `OPCUAURL` (DWIS blackboard endpoint, e.g., `opc.tcp://localhost:48030`)
+Advisor simulators include their own richer configs (sinusoid amplitudes/averages/periods for flowrate, RPM, ROP, WOB, TOB, DP; context change periods).
 
-and the `docker run` command for linux is:
-```
-docker run -d --name advicecomposer -v /home/Volumes/DWISAdviceComposerService:/home dwisadvicecomposerservice:latest
-```
-where `/home/Volumes/DWISAdviceComposerService` is any directory where you would like to access the config.json file that is used to
-configure the application.
-
-## Configuration
-A configuration file is available in the directory/folder that is connected to the internal `/home` directory. The name of the configuration
-file is `config.json` and is in Json format.
-
-The configuration file has the following properties:
-- `LoopDuration` (a TimeSpan, default 1s): this property defines the loop duration of the service, i.e., the time interval used to check if new signals are available.
-- `OPCUAURL` (a string, default "opc.tcp://localhost:48030"): this property defines the `URL` used to connect to the `DWIS Blackboard`
-
+## Notes
+- Advisor simulators are standalone containers; mount `/home` to supply their configs. They publish feature-tagged signals (CuttingsTransport, DrillStemVibration, RigActionPlan) for composition testing.
+- Service uses DWIS OPC UA client (`DWISClientOPCF`) and enforces capability preferences/locking via ADCS standard interface helpers.
