@@ -34,6 +34,11 @@ namespace DWIS.AdviceComposer.Service
         private Dictionary<string, Entry> RegisteredQueries { get; set; } = new Dictionary<string, Entry>();
 
         private object lock_ = new object();
+        private static readonly JsonSerializerSettings _contextSerializerSettings = new JsonSerializerSettings
+        {
+            TypeNameHandling = TypeNameHandling.Objects,
+            Formatting = Formatting.Indented
+        };
 
         private Guid _ADCSStandardInterfaceSubscription = Guid.NewGuid();
         private static string _prefix = "DWIS:AdviceComposer:";
@@ -211,21 +216,6 @@ namespace DWIS.AdviceComposer.Service
             }
         }
 
-        private void CallbackOPCUA2(object subscriptionData, UADataChange[] changes)
-        {
-            if (subscriptionData != null && subscriptionData is Entry entry && entry.LiveValues != null && changes != null && changes.Length > 0)
-            {
-                UADataChange dataChange = changes[0];
-                if (dataChange != null && entry.LiveValues.Count > 0)
-                {
-                    LiveValue? lv = entry.LiveValues.First().Value;
-                    if (lv != null)
-                    {
-                        lv.val = dataChange.Value;
-                    }
-                }
-            }
-        }
         protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
             ConnectToBlackboard();
@@ -564,136 +554,19 @@ namespace DWIS.AdviceComposer.Service
 
         private void ManageControllerFunction(ControllerFunction controllerFunction, ActivableFunction activableFunction)
         {
-            bool found = false;
-            foreach (var kvp1 in ControlFunctionDictionary)
+            if (ControlFunctionAlreadyRegistered(activableFunction.Name))
             {
-                if (kvp1.Value.src != null && kvp1.Value.src.ControllerFunction != null && !string.IsNullOrEmpty(kvp1.Value.src.ControllerFunction.Name) && kvp1.Value.src.ControllerFunction.Name.Equals(activableFunction.Name))
-                {
-                    found = true;
-                    break;
-                }
+                return;
             }
-            if (!found)
-            {
-                Guid controlFunctionID = Guid.NewGuid();
-                ControlFunctionData controlFunctionData = new ControlFunctionData();
-                controlFunctionData.ControllerFunction = controllerFunction;
-                ControlFunctionDictionary.Add(controlFunctionID, new (controlFunctionData, null, DateTime.MinValue));
 
-                if (controllerFunction.ContextSemanticInfo != null)
-                {
-                    if (string.IsNullOrEmpty(controllerFunction.ContextSemanticInfo.SparQLQuery) || controllerFunction.ContextSemanticInfo.SparQLVariables == null)
-                    {
-                        controllerFunction.FillInSparqlQueriesAndManifests();
-                    }
-                    controlFunctionData.ContextID = Guid.NewGuid();
-                    RegisterQuery(controllerFunction.ContextSemanticInfo, RegisteredQueries, controlFunctionData.ContextID);
-                }
-                if (controllerFunction.Parameters != null)
-                {
-                    if (string.IsNullOrEmpty(controllerFunction.Parameters.SparQLAlternateQuery) || controllerFunction.Parameters.SparQLAlternateVariables == null)
-                    {
-                        controllerFunction.FillInSparqlQueriesAndManifests();
-                    }
-                    controlFunctionData.ParametersID = Guid.NewGuid();
-                    RegisterQueryAlternate(controllerFunction.Parameters, RegisteredQueries, controlFunctionData.ParametersID);
-                }
-                if (controllerFunction.Parameters != null &&
-                    !string.IsNullOrEmpty(controllerFunction.Parameters.SparQLQuery))
-                {
-                    if (string.IsNullOrEmpty(controllerFunction.Parameters.SparQLQuery) || controllerFunction.Parameters.SparQLVariables == null)
-                    {
-                        controllerFunction.FillInSparqlQueriesAndManifests();
-                    }
-                    QueryResult? result = null;
-                    RegisterToBlackboard(controllerFunction.Parameters, _DWISClient, ref result);
-                    if (result != null)
-                    {
-                        controlFunctionData.ParametersDestinationID = Guid.NewGuid();
-                        PlaceHolders.Add(controlFunctionData.ParametersDestinationID, result);
-                    }
-                }
-                if (controllerFunction.Controllers != null)
-                {
-                    foreach (Controller controller in controllerFunction.Controllers)
-                    {
-                        if (controller != null)
-                        {
-                            ControlData controllerData = new ControlData();
-                            controlFunctionData.controllerDatas.Add(controllerData);
-                            if (controller.Parameters != null)
-                            {
-                                controllerData.ParametersID = Guid.NewGuid();
-                                RegisterQueryAlternate(controller.Parameters, RegisteredQueries, controllerData.ParametersID);
-                            }
-                            if (controller.Parameters != null &&
-                                !string.IsNullOrEmpty(controller.Parameters.SparQLQuery) &&
-                                controller.Parameters.SparQLVariables != null &&
-                                controller.Parameters.SparQLVariables.Count > 0)
-                            {
-                                QueryResult? result = null;
-                                RegisterToBlackboard(controller.Parameters, _DWISClient, ref result);
-                                if (result != null)
-                                {
-                                    controllerData.ParametersDestinationID = Guid.NewGuid();
-                                    PlaceHolders.Add(controllerData.ParametersDestinationID, result);
-                                }
-                            }
-                            if (controller is ControllerWithOnlyLimits controllerWithOnlyLimits)
-                            {
-                                if (controllerWithOnlyLimits.ControllerLimits != null)
-                                {
-                                    ManageLimits(controllerWithOnlyLimits.ControllerLimits, controllerData);
-                                }
-                            }
-                            else if (controller is ControllerWithControlledVariable controllerWithControlledVariable)
-                            {
-                                if (controllerWithControlledVariable.SetPointReference != null &&
-                                    !string.IsNullOrEmpty(controllerWithControlledVariable.SetPointReference.SparQLAlternateQuery) &&
-                                    controllerWithControlledVariable.SetPointReference.SparQLAlternateVariables != null &&
-                                    controllerWithControlledVariable.SetPointReference.SparQLAlternateVariables.Count > 0)
-                                {
-                                    controllerData.SetPointSourceID = Guid.NewGuid();
-                                    RegisterQueryAlternate(controllerWithControlledVariable.SetPointReference, RegisteredQueries, controllerData.SetPointSourceID);
-                                }
-                                if (controllerWithControlledVariable.SetPointReference != null &&
-                                    !string.IsNullOrEmpty(controllerWithControlledVariable.SetPointReference.SparQLQuery) &&
-                                    controllerWithControlledVariable.SetPointReference.SparQLVariables != null &&
-                                    controllerWithControlledVariable.SetPointReference.SparQLVariables.Count > 0)
-                                {
-                                    QueryResult? result = null;
-                                    RegisterToBlackboard(controllerWithControlledVariable.SetPointReference, _DWISClient, ref result);
-                                    if (result != null)
-                                    {
-                                        controllerData.SetPointDestinationID = Guid.NewGuid();
-                                        PlaceHolders.Add(controllerData.SetPointDestinationID, result);
-                                    }
-                                }
-                                if (controllerWithControlledVariable.ControlledVariableReference != null &&
-                                    !string.IsNullOrEmpty(controllerWithControlledVariable.ControlledVariableReference.SparQLQuery) &&
-                                    controllerWithControlledVariable.ControlledVariableReference.SparQLVariables != null &&
-                                    controllerWithControlledVariable.ControlledVariableReference.SparQLVariables.Count > 0)
-                                {
-                                    controllerData.MeasuredValueID = Guid.NewGuid();
-                                    RegisterQuery(controllerWithControlledVariable.ControlledVariableReference, RegisteredQueries, controllerData.MeasuredValueID);
-                                }
-                                if (controllerWithControlledVariable.SetPointMaxRateOfChange != null &&
-                                    !string.IsNullOrEmpty(controllerWithControlledVariable.SetPointMaxRateOfChange.SparQLQuery) &&
-                                    controllerWithControlledVariable.SetPointMaxRateOfChange.SparQLVariables != null &&
-                                    controllerWithControlledVariable.SetPointMaxRateOfChange.SparQLVariables.Count > 0)
-                                {
-                                    controllerData.MaxRateOfChangeID = Guid.NewGuid();
-                                    RegisterQuery(controllerWithControlledVariable.SetPointMaxRateOfChange, RegisteredQueries, controllerData.MaxRateOfChangeID);
-                                }
-                                if (controller is ControllerWithLimits controllerWithLimits)
-                                {
-                                    ManageLimits(controllerWithLimits.ControllerLimits, controllerData);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            Guid controlFunctionID = Guid.NewGuid();
+            ControlFunctionData controlFunctionData = new ControlFunctionData();
+            controlFunctionData.ControllerFunction = controllerFunction;
+            ControlFunctionDictionary.Add(controlFunctionID, new(controlFunctionData, null, DateTime.MinValue));
+
+            RegisterControllerContext(controllerFunction, controlFunctionData);
+            RegisterControllerParameters(controllerFunction, controlFunctionData);
+            RegisterControllers(controllerFunction, controlFunctionData);
         }
         private void ManageLimits(Dictionary<string, ControllerLimit>? controllerLimits, ControlData controllerData)
         {
@@ -786,94 +659,17 @@ namespace DWIS.AdviceComposer.Service
                         }
                         if (entryContext != null &&
                             entryContext.LiveValues != null &&
-                            entryContext.LiveValues.Count > 0)
+                            entryContext.LiveValues.Count > 0 &&
+                            TryGetContextFeatures(entryContext, out List<Vocabulary.Schemas.Nouns.Enum> features))
                         {
                             Dictionary<string, ProcedureData> availableDatas = new Dictionary<string, ProcedureData>();
-                            foreach (var kvp2 in entryContext.LiveValues)
+                            ManageParameters(kvp.Value.src, availableDatas);
+                            ProcedureData? chosenProcedureFunction = ChooseProcedureFunction(availableDatas, features);
+                            if (chosenProcedureFunction != null && chosenProcedureFunction.Parameters != null && chosenProcedureFunction.ParametersDestinationQueryResult != null)
                             {
-                                if (kvp2.Value != null && kvp2.Value.val != null && kvp2.Value.val is string json)
-                                {
-                                    var settings = new JsonSerializerSettings
-                                    {
-                                        TypeNameHandling = TypeNameHandling.Objects,
-                                        Formatting = Formatting.Indented
-                                    };
-                                    try
-                                    {
-                                        DWISContext? context = JsonConvert.DeserializeObject<DWISContext>(json, settings);
-                                        if (context != null)
-                                        {
-                                            List<Vocabulary.Schemas.Nouns.Enum> features = new List<Vocabulary.Schemas.Nouns.Enum>();
-                                            if (context.CapabilityPreferences != null)
-                                            {
-                                                foreach (var feature in context.CapabilityPreferences)
-                                                {
-                                                    features.Add(feature);
-                                                }
-                                            }
-                                            ManageParameters(kvp.Value.src, availableDatas);
-                                            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)> possibilities = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)>();
-                                            SelectProcedureFunctionData(availableDatas, features, possibilities);
-                                            ProcedureData? chosenProcedureFunction = null;
-                                            if (possibilities.Count > 0)
-                                            {
-                                                List<Vocabulary.Schemas.Nouns.Enum> fs = possibilities[0].features;
-                                                if (fs != null)
-                                                {
-                                                    List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)> withSameFeatures = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)>();
-                                                    foreach (var wol in possibilities)
-                                                    {
-                                                        if (wol.features != null)
-                                                        {
-                                                            bool eq = wol.features.Count == fs.Count;
-                                                            if (eq)
-                                                            {
-                                                                foreach (var f in fs)
-                                                                {
-                                                                    eq &= wol.features.Contains(f);
-                                                                    if (!eq)
-                                                                    {
-                                                                        break;
-                                                                    }
-                                                                }
-                                                            }
-                                                            if (eq)
-                                                            {
-                                                                withSameFeatures.Add(wol);
-                                                            }
-                                                        }
-                                                    }
-                                                    if (withSameFeatures.Count > 0)
-                                                    {
-                                                        withSameFeatures = withSameFeatures.OrderByDescending(wol => wol.Item2).ToList();
-                                                        chosenProcedureFunction = withSameFeatures[0].data;
-                                                    }
-                                                }
-                                                if (chosenProcedureFunction == null)
-                                                {
-                                                    chosenProcedureFunction = possibilities[0].data;
-                                                }
-                                            }
-                                            if (possibilities.Count > 0 && chosenProcedureFunction == null)
-                                            {
-                                                chosenProcedureFunction = possibilities[0].data;
-                                            }
-                                            if (chosenProcedureFunction != null)
-                                            {
-                                                if (chosenProcedureFunction.Parameters != null && chosenProcedureFunction.ParametersDestinationQueryResult != null)
-                                                {
-                                                    SendValue(chosenProcedureFunction.ParametersDestinationQueryResult, chosenProcedureFunction.Parameters);
-                                                }
-                                            }
-                                            break;
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        _logger?.LogError(ex.ToString());
-                                    }
-                                }
+                                SendValue(chosenProcedureFunction.ParametersDestinationQueryResult, chosenProcedureFunction.Parameters);
                             }
+                            break;
                         }
                     }
                 }
@@ -894,131 +690,23 @@ namespace DWIS.AdviceComposer.Service
                         }
                         if (entryContext != null &&
                             entryContext.LiveValues != null &&
-                            entryContext.LiveValues.Count > 0)
+                            entryContext.LiveValues.Count > 0 &&
+                            TryGetContextFeatures(entryContext, out List<Vocabulary.Schemas.Nouns.Enum> features))
                         {
                             Dictionary<string, ControllerFunctionData> availableDatas = new Dictionary<string, ControllerFunctionData>();
-                            foreach (var kvp2 in entryContext.LiveValues)
+                            ManageParameters(kvp.Value.src, availableDatas);
+                            FindAvailableDatas(availableDatas, kvp.Value.src.controllerDatas, kvp.Value.src);
+                            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withOnlyLimits;
+                            ControllerFunctionData? chosenControllerFunction = ChooseControllerFunction(availableDatas, features, out withOnlyLimits);
+                            if (chosenControllerFunction != null)
                             {
-                                if (kvp2.Value != null && kvp2.Value.val != null && kvp2.Value.val is string json)
+                                if (chosenControllerFunction.Parameters != null && chosenControllerFunction.ParametersDestinationQueryResult != null)
                                 {
-                                    var settings = new JsonSerializerSettings
-                                    {
-                                        TypeNameHandling = TypeNameHandling.Objects,
-                                        Formatting = Formatting.Indented
-                                    };
-                                    try
-                                    {
-                                        DWISContext? context = JsonConvert.DeserializeObject<DWISContext>(json, settings);
-                                        if (context != null)
-                                        {
-                                            List<Vocabulary.Schemas.Nouns.Enum> features = new List<Vocabulary.Schemas.Nouns.Enum>();
-                                            if (context.CapabilityPreferences != null)
-                                            {
-                                                foreach (var feature in context.CapabilityPreferences)
-                                                {
-                                                    features.Add(feature);
-                                                }
-                                            }
-                                            ManageParameters(kvp.Value.src, availableDatas);
-                                            FindAvailableDatas(availableDatas, kvp.Value.src.controllerDatas, kvp.Value.src);
-                                            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withOnlyLimits = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)>();
-                                            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withSetPoints = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)>();
-                                            SelectControllerFunctionData(availableDatas, features, withOnlyLimits, withSetPoints);
-                                            ControllerFunctionData? chosenControllerFunction = null;
-                                            if (withSetPoints.Count > 0)
-                                            {
-                                                List<Vocabulary.Schemas.Nouns.Enum> fs = withSetPoints[0].features;
-                                                if (fs != null)
-                                                {
-                                                    List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withSameFeatures = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)>();
-                                                    foreach (var wol in withSetPoints)
-                                                    {
-                                                        if (wol.features != null)
-                                                        {
-                                                            bool eq = wol.features.Count == fs.Count;
-                                                            if (eq)
-                                                            {
-                                                                foreach (var f in fs)
-                                                                {
-                                                                    eq &= wol.features.Contains(f);
-                                                                    if (!eq)
-                                                                    {
-                                                                        break;
-                                                                    }
-                                                                }
-                                                            }
-                                                            if (eq)
-                                                            {
-                                                                withSameFeatures.Add(wol);
-                                                            }
-                                                        }
-                                                    }
-                                                    if (withSameFeatures.Count > 0)
-                                                    {
-                                                        withSameFeatures = withSameFeatures.OrderByDescending(wol => wol.Item2).ToList();
-                                                        chosenControllerFunction = withSameFeatures[0].data;
-                                                    }
-                                                }
-                                                if (chosenControllerFunction == null)
-                                                {
-                                                    chosenControllerFunction = withSetPoints[0].data;
-                                                }
-                                            }
-                                            if (withOnlyLimits.Count > 0 && chosenControllerFunction == null)
-                                            {
-                                                chosenControllerFunction = withOnlyLimits[0].data;
-                                            }
-                                            if (chosenControllerFunction != null)
-                                            {
-                                                if (chosenControllerFunction.Parameters != null && chosenControllerFunction.ParametersDestinationQueryResult != null)
-                                                {
-                                                    SendValue(chosenControllerFunction.ParametersDestinationQueryResult, chosenControllerFunction.Parameters);
-                                                }
-                                                foreach (var wol in withOnlyLimits)
-                                                {
-                                                    if (wol.data != null)
-                                                    {
-                                                        MergeLimits(chosenControllerFunction, wol.data);
-                                                    }
-                                                }
-                                                ProcessRateOfChange(chosenControllerFunction, kvp.Key);
-                                                foreach (var c in chosenControllerFunction.ControllerDatas)
-                                                {
-                                                    if (c != null)
-                                                    {
-                                                        if (c.ParametersDestinationQueryResult != null && c.Parameters != null)
-                                                        {
-                                                            SendValue(c.ParametersDestinationQueryResult, c.Parameters);
-                                                        }
-                                                        if (c.SetPointDestinationQueryResult != null && c.SetPointRecommendation != null) 
-                                                        {
-                                                            SendValue(c.SetPointDestinationQueryResult, c.SetPointRecommendation);
-                                                        }
-                                                        if (c.ControllerLimitDatas != null)
-                                                        {
-                                                            foreach (var l in c.ControllerLimitDatas)
-                                                            {
-                                                                if (l != null)
-                                                                {
-                                                                    if (l.LimitDestinationQueryResult != null && l.LimitRecommendation != null)
-                                                                    {
-                                                                        SendValue(l.LimitDestinationQueryResult, l.LimitRecommendation);
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            break;
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        _logger?.LogError(ex.ToString());
-                                    }
+                                    SendValue(chosenControllerFunction.ParametersDestinationQueryResult, chosenControllerFunction.Parameters);
                                 }
+                                SendControllerFunctionOutputs(chosenControllerFunction, withOnlyLimits, kvp.Key);
                             }
+                            break;
                         }
                     }
                 }
@@ -1274,6 +962,314 @@ namespace DWIS.AdviceComposer.Service
                                         dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation = Math.Min(dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation!.Value, src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation!.Value);
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        private bool ControlFunctionAlreadyRegistered(string activableFunctionName)
+        {
+            bool found = false;
+            foreach (var kvp1 in ControlFunctionDictionary)
+            {
+                if (kvp1.Value.src != null && kvp1.Value.src.ControllerFunction != null && !string.IsNullOrEmpty(kvp1.Value.src.ControllerFunction.Name) && kvp1.Value.src.ControllerFunction.Name.Equals(activableFunctionName))
+                {
+                    found = true;
+                    break;
+                }
+            }
+            return found;
+        }
+        private void RegisterControllerContext(ControllerFunction controllerFunction, ControlFunctionData controlFunctionData)
+        {
+            if (controllerFunction.ContextSemanticInfo != null)
+            {
+                if (string.IsNullOrEmpty(controllerFunction.ContextSemanticInfo.SparQLQuery) || controllerFunction.ContextSemanticInfo.SparQLVariables == null)
+                {
+                    controllerFunction.FillInSparqlQueriesAndManifests();
+                }
+                controlFunctionData.ContextID = Guid.NewGuid();
+                RegisterQuery(controllerFunction.ContextSemanticInfo, RegisteredQueries, controlFunctionData.ContextID);
+            }
+        }
+        private void RegisterControllerParameters(ControllerFunction controllerFunction, ControlFunctionData controlFunctionData)
+        {
+            if (controllerFunction.Parameters != null)
+            {
+                if (string.IsNullOrEmpty(controllerFunction.Parameters.SparQLAlternateQuery) || controllerFunction.Parameters.SparQLAlternateVariables == null)
+                {
+                    controllerFunction.FillInSparqlQueriesAndManifests();
+                }
+                controlFunctionData.ParametersID = Guid.NewGuid();
+                RegisterQueryAlternate(controllerFunction.Parameters, RegisteredQueries, controlFunctionData.ParametersID);
+            }
+            if (controllerFunction.Parameters != null &&
+                !string.IsNullOrEmpty(controllerFunction.Parameters.SparQLQuery))
+            {
+                if (string.IsNullOrEmpty(controllerFunction.Parameters.SparQLQuery) || controllerFunction.Parameters.SparQLVariables == null)
+                {
+                    controllerFunction.FillInSparqlQueriesAndManifests();
+                }
+                QueryResult? result = null;
+                RegisterToBlackboard(controllerFunction.Parameters, _DWISClient, ref result);
+                if (result != null)
+                {
+                    controlFunctionData.ParametersDestinationID = Guid.NewGuid();
+                    PlaceHolders.Add(controlFunctionData.ParametersDestinationID, result);
+                }
+            }
+        }
+        private void RegisterControllers(ControllerFunction controllerFunction, ControlFunctionData controlFunctionData)
+        {
+            if (controllerFunction.Controllers != null)
+            {
+                foreach (Controller controller in controllerFunction.Controllers)
+                {
+                    if (controller != null)
+                    {
+                        ControlData controllerData = new ControlData();
+                        controlFunctionData.controllerDatas.Add(controllerData);
+                        RegisterControllerParameters(controller, controllerData);
+                        RegisterControllerSetPoints(controller, controllerData);
+                        RegisterControllerLimits(controller, controllerData);
+                    }
+                }
+            }
+        }
+        private void RegisterControllerParameters(Controller controller, ControlData controllerData)
+        {
+            if (controller.Parameters != null)
+            {
+                controllerData.ParametersID = Guid.NewGuid();
+                RegisterQueryAlternate(controller.Parameters, RegisteredQueries, controllerData.ParametersID);
+            }
+            if (controller.Parameters != null &&
+                !string.IsNullOrEmpty(controller.Parameters.SparQLQuery) &&
+                controller.Parameters.SparQLVariables != null &&
+                controller.Parameters.SparQLVariables.Count > 0)
+            {
+                QueryResult? result = null;
+                RegisterToBlackboard(controller.Parameters, _DWISClient, ref result);
+                if (result != null)
+                {
+                    controllerData.ParametersDestinationID = Guid.NewGuid();
+                    PlaceHolders.Add(controllerData.ParametersDestinationID, result);
+                }
+            }
+        }
+        private void RegisterControllerSetPoints(Controller controller, ControlData controllerData)
+        {
+            if (controller is ControllerWithControlledVariable controllerWithControlledVariable)
+            {
+                if (controllerWithControlledVariable.SetPointReference != null &&
+                    !string.IsNullOrEmpty(controllerWithControlledVariable.SetPointReference.SparQLAlternateQuery) &&
+                    controllerWithControlledVariable.SetPointReference.SparQLAlternateVariables != null &&
+                    controllerWithControlledVariable.SetPointReference.SparQLAlternateVariables.Count > 0)
+                {
+                    controllerData.SetPointSourceID = Guid.NewGuid();
+                    RegisterQueryAlternate(controllerWithControlledVariable.SetPointReference, RegisteredQueries, controllerData.SetPointSourceID);
+                }
+                if (controllerWithControlledVariable.SetPointReference != null &&
+                    !string.IsNullOrEmpty(controllerWithControlledVariable.SetPointReference.SparQLQuery) &&
+                    controllerWithControlledVariable.SetPointReference.SparQLVariables != null &&
+                    controllerWithControlledVariable.SetPointReference.SparQLVariables.Count > 0)
+                {
+                    QueryResult? result = null;
+                    RegisterToBlackboard(controllerWithControlledVariable.SetPointReference, _DWISClient, ref result);
+                    if (result != null)
+                    {
+                        controllerData.SetPointDestinationID = Guid.NewGuid();
+                        PlaceHolders.Add(controllerData.SetPointDestinationID, result);
+                    }
+                }
+                if (controllerWithControlledVariable.ControlledVariableReference != null &&
+                    !string.IsNullOrEmpty(controllerWithControlledVariable.ControlledVariableReference.SparQLQuery) &&
+                    controllerWithControlledVariable.ControlledVariableReference.SparQLVariables != null &&
+                    controllerWithControlledVariable.ControlledVariableReference.SparQLVariables.Count > 0)
+                {
+                    controllerData.MeasuredValueID = Guid.NewGuid();
+                    RegisterQuery(controllerWithControlledVariable.ControlledVariableReference, RegisteredQueries, controllerData.MeasuredValueID);
+                }
+                if (controllerWithControlledVariable.SetPointMaxRateOfChange != null &&
+                    !string.IsNullOrEmpty(controllerWithControlledVariable.SetPointMaxRateOfChange.SparQLQuery) &&
+                    controllerWithControlledVariable.SetPointMaxRateOfChange.SparQLVariables != null &&
+                    controllerWithControlledVariable.SetPointMaxRateOfChange.SparQLVariables.Count > 0)
+                {
+                    controllerData.MaxRateOfChangeID = Guid.NewGuid();
+                    RegisterQuery(controllerWithControlledVariable.SetPointMaxRateOfChange, RegisteredQueries, controllerData.MaxRateOfChangeID);
+                }
+            }
+        }
+        private void RegisterControllerLimits(Controller controller, ControlData controllerData)
+        {
+            if (controller is ControllerWithOnlyLimits controllerWithOnlyLimits)
+            {
+                if (controllerWithOnlyLimits.ControllerLimits != null)
+                {
+                    ManageLimits(controllerWithOnlyLimits.ControllerLimits, controllerData);
+                }
+            }
+            else if (controller is ControllerWithLimits controllerWithLimits)
+            {
+                ManageLimits(controllerWithLimits.ControllerLimits, controllerData);
+            }
+        }
+        private bool TryGetContextFeatures(Entry entryContext, out List<Vocabulary.Schemas.Nouns.Enum> features)
+        {
+            features = new List<Vocabulary.Schemas.Nouns.Enum>();
+            if (entryContext != null && entryContext.LiveValues != null && entryContext.LiveValues.Count > 0)
+            {
+                foreach (var kvp2 in entryContext.LiveValues)
+                {
+                    if (kvp2.Value != null && kvp2.Value.val != null && kvp2.Value.val is string json)
+                    {
+                        try
+                        {
+                            DWISContext? context = JsonConvert.DeserializeObject<DWISContext>(json, _contextSerializerSettings);
+                            if (context != null)
+                            {
+                                if (context.CapabilityPreferences != null)
+                                {
+                                    foreach (var feature in context.CapabilityPreferences)
+                                    {
+                                        features.Add(feature);
+                                    }
+                                }
+                                return true;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.LogError(ex.ToString());
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+        private ProcedureData? ChooseProcedureFunction(Dictionary<string, ProcedureData> availableDatas, List<Vocabulary.Schemas.Nouns.Enum> features)
+        {
+            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)> possibilities = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)>();
+            SelectProcedureFunctionData(availableDatas, features, possibilities);
+            if (possibilities.Count > 0)
+            {
+                List<Vocabulary.Schemas.Nouns.Enum> fs = possibilities[0].features;
+                if (fs != null)
+                {
+                    List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)> withSameFeatures = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)>();
+                    foreach (var wol in possibilities)
+                    {
+                        if (wol.features != null)
+                        {
+                            bool eq = wol.features.Count == fs.Count;
+                            if (eq)
+                            {
+                                foreach (var f in fs)
+                                {
+                                    eq &= wol.features.Contains(f);
+                                    if (!eq)
+                                    {
+                                        break;
+                                    }
+                                }
+                            }
+                            if (eq)
+                            {
+                                withSameFeatures.Add(wol);
+                            }
+                        }
+                    }
+                    if (withSameFeatures.Count > 0)
+                    {
+                        withSameFeatures = withSameFeatures.OrderByDescending(wol => wol.Item2).ToList();
+                        return withSameFeatures[0].data;
+                    }
+                }
+                return possibilities[0].data;
+            }
+            return null;
+        }
+        private ControllerFunctionData? ChooseControllerFunction(Dictionary<string, ControllerFunctionData> availableDatas, List<Vocabulary.Schemas.Nouns.Enum> features, out List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withOnlyLimits)
+        {
+            withOnlyLimits = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)>();
+            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withSetPoints = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)>();
+            SelectControllerFunctionData(availableDatas, features, withOnlyLimits, withSetPoints);
+            ControllerFunctionData? chosenControllerFunction = null;
+            if (withSetPoints.Count > 0)
+            {
+                List<Vocabulary.Schemas.Nouns.Enum> fs = withSetPoints[0].features;
+                if (fs != null)
+                {
+                    List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withSameFeatures = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)>();
+                    foreach (var wol in withSetPoints)
+                    {
+                        if (wol.features != null)
+                        {
+                            bool eq = wol.features.Count == fs.Count;
+                            if (eq)
+                            {
+                                foreach (var f in fs)
+                                {
+                                    eq &= wol.features.Contains(f);
+                                    if (!eq)
+                                    {
+                                        break;
+                                    }
+                                }
+                            }
+                            if (eq)
+                            {
+                                withSameFeatures.Add(wol);
+                            }
+                        }
+                    }
+                    if (withSameFeatures.Count > 0)
+                    {
+                        withSameFeatures = withSameFeatures.OrderByDescending(wol => wol.Item2).ToList();
+                        chosenControllerFunction = withSameFeatures[0].data;
+                    }
+                }
+                if (chosenControllerFunction == null)
+                {
+                    chosenControllerFunction = withSetPoints[0].data;
+                }
+            }
+            if (withOnlyLimits.Count > 0 && chosenControllerFunction == null)
+            {
+                chosenControllerFunction = withOnlyLimits[0].data;
+            }
+            return chosenControllerFunction;
+        }
+        private void SendControllerFunctionOutputs(ControllerFunctionData chosenControllerFunction, List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withOnlyLimits, Guid guid)
+        {
+            foreach (var wol in withOnlyLimits)
+            {
+                if (wol.data != null)
+                {
+                    MergeLimits(chosenControllerFunction, wol.data);
+                }
+            }
+            ProcessRateOfChange(chosenControllerFunction, guid);
+            foreach (var c in chosenControllerFunction.ControllerDatas)
+            {
+                if (c != null)
+                {
+                    if (c.ParametersDestinationQueryResult != null && c.Parameters != null)
+                    {
+                        SendValue(c.ParametersDestinationQueryResult, c.Parameters);
+                    }
+                    if (c.SetPointDestinationQueryResult != null && c.SetPointRecommendation != null)
+                    {
+                        SendValue(c.SetPointDestinationQueryResult, c.SetPointRecommendation);
+                    }
+                    if (c.ControllerLimitDatas != null)
+                    {
+                        foreach (var l in c.ControllerLimitDatas)
+                        {
+                            if (l != null && l.LimitDestinationQueryResult != null && l.LimitRecommendation != null)
+                            {
+                                SendValue(l.LimitDestinationQueryResult, l.LimitRecommendation);
                             }
                         }
                     }
