@@ -45,6 +45,10 @@ namespace DWIS.AdviceComposer.Service
             TypeNameHandling = TypeNameHandling.Objects,
             Formatting = Formatting.Indented
         };
+        private TimeSpan ControllerObsolescence => Configuration?.ControllerObsolescence ?? TimeSpan.Zero;
+        private TimeSpan ProcedureObsolescence => Configuration?.ProcedureObsolescence ?? TimeSpan.Zero;
+        private TimeSpan FDIRObolescence => Configuration?.FaultDetectionIsolationAndRecoveryObsolescence ?? TimeSpan.Zero;
+        private TimeSpan SOEObsolescence => Configuration?.SafeOperatingEnvelopeObsolescence ?? TimeSpan.Zero;
 
         private Guid _ADCSStandardInterfaceSubscription = Guid.NewGuid();
         private static string _prefix = "DWIS:AdviceComposer:";
@@ -85,6 +89,7 @@ namespace DWIS.AdviceComposer.Service
                             if (config != null)
                             {
                                 Configuration = config;
+                                EnsureObsolescenceDefaults();
                             }
                         }
                         catch (Exception e)
@@ -105,6 +110,10 @@ namespace DWIS.AdviceComposer.Service
                     }
                 }
             }
+            else
+            {
+                EnsureObsolescenceDefaults();
+            }
             if (_logger != null)
             {
                 _logger.LogInformation("Configuration Loop Duration: " + Configuration.LoopDuration.ToString());
@@ -118,6 +127,26 @@ namespace DWIS.AdviceComposer.Service
                 {
                     _logger.LogInformation("My IP Address: " + ip.AddressList[0].ToString());
                 }
+            }
+        }
+
+        private void EnsureObsolescenceDefaults()
+        {
+            if (Configuration.ControllerObsolescence == TimeSpan.Zero)
+            {
+                Configuration.ControllerObsolescence = TimeSpan.FromSeconds(5);
+            }
+            if (Configuration.ProcedureObsolescence == TimeSpan.Zero)
+            {
+                Configuration.ProcedureObsolescence = TimeSpan.FromSeconds(5);
+            }
+            if (Configuration.FaultDetectionIsolationAndRecoveryObsolescence == TimeSpan.Zero)
+            {
+                Configuration.FaultDetectionIsolationAndRecoveryObsolescence = TimeSpan.FromSeconds(5);
+            }
+            if (Configuration.SafeOperatingEnvelopeObsolescence == TimeSpan.Zero)
+            {
+                Configuration.SafeOperatingEnvelopeObsolescence = TimeSpan.FromSeconds(5);
             }
         }
 
@@ -213,6 +242,7 @@ namespace DWIS.AdviceComposer.Service
                         if (entry.LiveValues.ContainsKey(guid))
                         {
                             entry.LiveValues[guid].val = dataChange.Value;
+                            entry.LiveValues[guid].Timestamp = DateTime.UtcNow;
                         }
                     }
                     else 
@@ -784,7 +814,7 @@ namespace DWIS.AdviceComposer.Service
                         if (entryContext != null &&
                             entryContext.LiveValues != null &&
                             entryContext.LiveValues.Count > 0 &&
-                            TryGetContextFeatures(entryContext, out List<Vocabulary.Schemas.Nouns.Enum> features))
+                            TryGetContextFeatures(entryContext, ProcedureObsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features))
                         {
                             Dictionary<string, ProcedureData> availableDatas = new Dictionary<string, ProcedureData>();
                             ManageParameters(kvp.Value.src, availableDatas);
@@ -815,7 +845,7 @@ namespace DWIS.AdviceComposer.Service
                         if (entryContext != null &&
                             entryContext.LiveValues != null &&
                             entryContext.LiveValues.Count > 0 &&
-                            TryGetContextFeatures(entryContext, out List<Vocabulary.Schemas.Nouns.Enum> features))
+                            TryGetContextFeatures(entryContext, FDIRObolescence, out List<Vocabulary.Schemas.Nouns.Enum> features))
                         {
                             Dictionary<string, FaultDetectionIsolationAndRecoveryData> availableDatas = new Dictionary<string, FaultDetectionIsolationAndRecoveryData>();
                             ManageParameters(kvp.Value.src, availableDatas);
@@ -846,7 +876,7 @@ namespace DWIS.AdviceComposer.Service
                         if (entryContext != null &&
                             entryContext.LiveValues != null &&
                             entryContext.LiveValues.Count > 0 &&
-                            TryGetContextFeatures(entryContext, out List<Vocabulary.Schemas.Nouns.Enum> features))
+                            TryGetContextFeatures(entryContext, SOEObsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features))
                         {
                             Dictionary<string, SafeOperatingEnvelopeData> availableDatas = new Dictionary<string, SafeOperatingEnvelopeData>();
                             ManageParameters(kvp.Value.src, availableDatas);
@@ -879,7 +909,7 @@ namespace DWIS.AdviceComposer.Service
                         if (entryContext != null &&
                             entryContext.LiveValues != null &&
                             entryContext.LiveValues.Count > 0 &&
-                            TryGetContextFeatures(entryContext, out List<Vocabulary.Schemas.Nouns.Enum> features))
+                            TryGetContextFeatures(entryContext, ControllerObsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features))
                         {
                             Dictionary<string, ControllerFunctionData> availableDatas = new Dictionary<string, ControllerFunctionData>();
                             ManageParameters(kvp.Value.src, availableDatas);
@@ -1303,14 +1333,14 @@ namespace DWIS.AdviceComposer.Service
                 ManageLimits(controllerWithLimits.ControllerLimits, controllerData);
             }
         }
-        private bool TryGetContextFeatures(Entry entryContext, out List<Vocabulary.Schemas.Nouns.Enum> features)
+        private bool TryGetContextFeatures(Entry entryContext, TimeSpan obsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features)
         {
             features = new List<Vocabulary.Schemas.Nouns.Enum>();
             if (entryContext != null && entryContext.LiveValues != null && entryContext.LiveValues.Count > 0)
             {
                 foreach (var kvp2 in entryContext.LiveValues)
                 {
-                    if (kvp2.Value != null && kvp2.Value.val != null && kvp2.Value.val is string json)
+                    if (kvp2.Value != null && kvp2.Value.val != null && kvp2.Value.val is string json && IsFresh(kvp2.Value.Timestamp, obsolescence))
                     {
                         try
                         {
@@ -1786,14 +1816,14 @@ namespace DWIS.AdviceComposer.Service
             }
         }
 
-        private object? SearchValue(Dictionary<Guid, LiveValue> liveValues, NodeIdentifier ID)
+        private object? SearchValue(Dictionary<Guid, LiveValue> liveValues, NodeIdentifier ID, TimeSpan obsolescence)
         {
             object? val = null;
             if (liveValues != null && ID != null && !string.IsNullOrEmpty(ID.ID) && !string.IsNullOrEmpty(ID.NameSpace))
             {
                 foreach (var kvp in liveValues)
                 {
-                    if (kvp.Value != null && ID.ID.Equals(kvp.Value.id) && ID.NameSpace.Equals(kvp.Value.ns))
+                    if (kvp.Value != null && ID.ID.Equals(kvp.Value.id) && ID.NameSpace.Equals(kvp.Value.ns) && IsFresh(kvp.Value.Timestamp, obsolescence))
                     {
                         val = kvp.Value.val;
                         break;
@@ -1801,6 +1831,34 @@ namespace DWIS.AdviceComposer.Service
                 }
             }
             return val;
+        }
+        private bool TryGetFirstFreshValue(Dictionary<Guid, LiveValue> liveValues, TimeSpan obsolescence, out LiveValue? liveValue)
+        {
+            liveValue = null;
+            if (liveValues != null)
+            {
+                foreach (var kvp in liveValues)
+                {
+                    if (kvp.Value != null && IsFresh(kvp.Value.Timestamp, obsolescence))
+                    {
+                        liveValue = kvp.Value;
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        private bool IsFresh(DateTime timestamp, TimeSpan obsolescence)
+        {
+            if (obsolescence == TimeSpan.Zero)
+            {
+                return true;
+            }
+            if (timestamp == DateTime.MinValue)
+            {
+                return false;
+            }
+            return (DateTime.UtcNow - timestamp) <= obsolescence;
         }
         private void AddFeature(ProcedureData? cf, Vocabulary.Schemas.Nouns.Enum f)
         {
@@ -1893,7 +1951,7 @@ namespace DWIS.AdviceComposer.Service
                         AddFeature(cf, f);
                         if (cf != null)
                         {
-                            object? val = SearchValue(parametersSource.LiveValues, res[0]);
+                            object? val = SearchValue(parametersSource.LiveValues, res[0], ProcedureObsolescence);
                             if (val != null)
                             {
                                 cf.Parameters = val;
@@ -1959,7 +2017,7 @@ namespace DWIS.AdviceComposer.Service
                         AddFeature(cf, f);
                         if (cf != null)
                         {
-                            object? val = SearchValue(parametersSource.LiveValues, res[0]);
+                            object? val = SearchValue(parametersSource.LiveValues, res[0], ControllerObsolescence);
                             if (val != null)
                             {
                                 cf.Parameters = val;
@@ -2025,7 +2083,7 @@ namespace DWIS.AdviceComposer.Service
                         AddFeature(cf, f);
                         if (cf != null)
                         {
-                            object? val = SearchValue(parametersSource.LiveValues, res[0]);
+                            object? val = SearchValue(parametersSource.LiveValues, res[0], FDIRObolescence);
                             if (val != null)
                             {
                                 cf.Parameters = val;
@@ -2064,7 +2122,7 @@ namespace DWIS.AdviceComposer.Service
                         AddFeature(cf, f);
                         if (cf != null)
                         {
-                            object? val = SearchValue(parametersSource.LiveValues, res[0]);
+                            object? val = SearchValue(parametersSource.LiveValues, res[0], SOEObsolescence);
                             if (val != null)
                             {
                                 cf.Parameters = val;
@@ -2103,7 +2161,7 @@ namespace DWIS.AdviceComposer.Service
                         AddFeature(cf, f);
                         if (cf != null && cf.ControllerDatas != null && cf.ControllerDatas.Count > i && cf.ControllerDatas[i] != null)
                         {
-                            object? val = SearchValue(parametersSource.LiveValues, res[0]);
+                            object? val = SearchValue(parametersSource.LiveValues, res[0], ControllerObsolescence);
                             if (val != null)
                             {
                                 cf.ControllerDatas[i].Parameters = val;
@@ -2125,19 +2183,17 @@ namespace DWIS.AdviceComposer.Service
                 setPointSource.LiveValues != null &&
                 measuredValue != null &&
                 measuredValue.LiveValues != null &&
-                measuredValue.LiveValues.Values != null &&
-                measuredValue.LiveValues.Values.Any() &&
-                measuredValue.LiveValues.Values.First() != null &&
-                measuredValue.LiveValues.Values.First().val != null &&
-                measuredValue.LiveValues.Values.First().val is double mVal &&
                 maxRateOfChange != null &&
                 maxRateOfChange.LiveValues != null &&
-                maxRateOfChange.LiveValues.Values != null &&
-                maxRateOfChange.LiveValues.Values.Any() &&
-                maxRateOfChange.LiveValues.Values.First() != null &&
-                maxRateOfChange.LiveValues.Values.First().val != null &&
-                maxRateOfChange.LiveValues.Values.First().val is double mROC &&
-                setPointDestination != null)
+                setPointDestination != null &&
+                TryGetFirstFreshValue(measuredValue.LiveValues, ControllerObsolescence, out LiveValue? mv) &&
+                mv != null &&
+                mv.val != null &&
+                mv.val is double mVal &&
+                TryGetFirstFreshValue(maxRateOfChange.LiveValues, ControllerObsolescence, out LiveValue? roc) &&
+                roc != null &&
+                roc.val != null &&
+                roc.val is double mROC)
             {
                 foreach (var res in setPointSource.Results)
                 {
@@ -2158,7 +2214,7 @@ namespace DWIS.AdviceComposer.Service
                         AddFeature(cf, f);
                         if (cf != null && cf.ControllerDatas != null && cf.ControllerDatas.Count > i && cf.ControllerDatas[i] != null)
                         {
-                            object? val = SearchValue(setPointSource.LiveValues, res[0]);
+                            object? val = SearchValue(setPointSource.LiveValues, res[0], ControllerObsolescence);
                             if (val != null && val is double dval)
                             {
                                 cf.ControllerDatas[i].SetPointRecommendation = dval;
@@ -2189,11 +2245,10 @@ namespace DWIS.AdviceComposer.Service
                 maxLimitSource.LiveValues != null &&
                 maxRateOfChange != null &&
                 maxRateOfChange.LiveValues != null &&
-                maxRateOfChange.LiveValues.Values != null &&
-                maxRateOfChange.LiveValues.Values.Any() &&
-                maxRateOfChange.LiveValues.Values.First() != null &&
-                maxRateOfChange.LiveValues.Values.First().val != null &&
-                maxRateOfChange.LiveValues.Values.First().val is double mROC &&
+                TryGetFirstFreshValue(maxRateOfChange.LiveValues, ControllerObsolescence, out LiveValue? roc) &&
+                roc != null &&
+                roc.val != null &&
+                roc.val is double mROC &&
                 maxLimitDestination != null)
             {
                 foreach (var res in maxLimitSource.Results)
@@ -2222,7 +2277,7 @@ namespace DWIS.AdviceComposer.Service
                             cf.ControllerDatas[i].ControllerLimitDatas.Count > j &&
                             cf.ControllerDatas[i].ControllerLimitDatas[j] != null)
                         {
-                            object? val = SearchValue(maxLimitSource.LiveValues, res[0]);
+                            object? val = SearchValue(maxLimitSource.LiveValues, res[0], ControllerObsolescence);
                             if (val != null && val is double dval)
                             {
                                 cf.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation = dval;

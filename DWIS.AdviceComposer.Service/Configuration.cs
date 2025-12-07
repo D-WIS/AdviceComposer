@@ -10,6 +10,10 @@ namespace DWIS.AdviceComposer.Service
     {
         public TimeSpan LoopDuration { get; set; } = TimeSpan.FromSeconds(1.0);
         public string? OPCUAURL { get; set; } = "opc.tcp://localhost:48030";
+        public TimeSpan ControllerObsolescence { get; set; } = TimeSpan.FromSeconds(5.0);
+        public TimeSpan ProcedureObsolescence { get; set; } = TimeSpan.FromSeconds(5.0);
+        public TimeSpan FaultDetectionIsolationAndRecoveryObsolescence { get; set; } = TimeSpan.FromSeconds(5.0);
+        public TimeSpan SafeOperatingEnvelopeObsolescence { get; set; } = TimeSpan.FromSeconds(5.0);
 
     }
 }
