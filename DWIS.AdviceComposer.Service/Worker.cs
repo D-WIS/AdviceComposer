@@ -15,6 +15,9 @@ using System.Reflection;
 using OSDC.DotnetLibraries.Drilling.DrillingProperties;
 using Opc.Ua;
 using DWIS.RigOS.Capabilities.Procedure.Model;
+using DWIS.RigOS.Capabilities.FDIR.Model;
+using DWIS.RigOS.Capabilities.SOE.Model;
+using DWIS.RigOS.Capabilities.FDIR.Model;
 
 namespace DWIS.AdviceComposer.Service
 {
@@ -30,6 +33,7 @@ namespace DWIS.AdviceComposer.Service
 
         private Dictionary<Guid, (ControlFunctionData src, ControllerFunctionData? last, DateTime lastTimeStamp)> ControlFunctionDictionary { get; set; } = new Dictionary<Guid, (ControlFunctionData src, ControllerFunctionData? last, DateTime lastTimeStamp)>();
         private Dictionary<Guid, (ProcedureFunctionData src, ProcedureFunctionData? last, DateTime lastTimeStamp)> ProcedureFunctionDictionary { get; set; } = new Dictionary<Guid, (ProcedureFunctionData src, ProcedureFunctionData? last, DateTime lastTimeStamp)>();
+        private Dictionary<Guid, (FaultDetectionIsolationAndRecoveryFunctionData src, FaultDetectionIsolationAndRecoveryFunctionData? last, DateTime lastTimeStamp)> FaultDetectionIsolationAndRecoveryFunctionDictionary { get; set; } = new Dictionary<Guid, (FaultDetectionIsolationAndRecoveryFunctionData src, FaultDetectionIsolationAndRecoveryFunctionData? last, DateTime lastTimeStamp)>();
 
         private Dictionary<string, Entry> RegisteredQueries { get; set; } = new Dictionary<string, Entry>();
 
@@ -445,6 +449,7 @@ namespace DWIS.AdviceComposer.Service
                 ManageActivableFunctionList();
                 ManageControllerFunctionsSetPointsLimitsAndParameters();
                 ManageProcedureParameters();
+                ManageFaultDetectionIsolationAndRecoveryParameters();
             }
         }
 
@@ -484,6 +489,10 @@ namespace DWIS.AdviceComposer.Service
                                             else if (activableFunction is ProcedureFunction procedureFunction)
                                             {
                                                 ManageProcedureFunction(procedureFunction, activableFunction);
+                                            }
+                                            else if (activableFunction is FaultDetectionIsolationAndRecoveryFunction fdirFunction)
+                                            {
+                                                ManageFaultDetectionIsolationAndRecoveryFunction(fdirFunction, activableFunction);
                                             }
                                         }
                                     }
@@ -549,6 +558,60 @@ namespace DWIS.AdviceComposer.Service
                         PlaceHolders.Add(procedureFunctionData.ParametersDestinationID, result);
                     }
                 }                
+            }
+        }
+
+        private void ManageFaultDetectionIsolationAndRecoveryFunction(FaultDetectionIsolationAndRecoveryFunction fdirFunction, ActivableFunction activableFunction)
+        {
+            bool found = false;
+            foreach (var kvp1 in FaultDetectionIsolationAndRecoveryFunctionDictionary)
+            {
+                if (kvp1.Value.src != null && kvp1.Value.src.FaultDetectionIsolationAndRecoveryFunction != null && !string.IsNullOrEmpty(kvp1.Value.src.FaultDetectionIsolationAndRecoveryFunction.Name) && kvp1.Value.src.FaultDetectionIsolationAndRecoveryFunction.Name.Equals(activableFunction.Name))
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                Guid fdirFunctionID = Guid.NewGuid();
+                FaultDetectionIsolationAndRecoveryFunctionData fdirFunctionData = new FaultDetectionIsolationAndRecoveryFunctionData();
+                fdirFunctionData.FaultDetectionIsolationAndRecoveryFunction = fdirFunction;
+                FaultDetectionIsolationAndRecoveryFunctionDictionary.Add(fdirFunctionID, new(fdirFunctionData, null, DateTime.MinValue));
+
+                if (fdirFunction.ContextSemanticInfo != null)
+                {
+                    if (string.IsNullOrEmpty(fdirFunction.ContextSemanticInfo.SparQLQuery) || fdirFunction.ContextSemanticInfo.SparQLVariables == null)
+                    {
+                        fdirFunction.FillInSparqlQueriesAndManifests();
+                    }
+                    fdirFunctionData.ContextID = Guid.NewGuid();
+                    RegisterQuery(fdirFunction.ContextSemanticInfo, RegisteredQueries, fdirFunctionData.ContextID);
+                }
+                if (fdirFunction.Parameters != null)
+                {
+                    if (string.IsNullOrEmpty(fdirFunction.Parameters.SparQLQuery) || fdirFunction.Parameters.SparQLVariables == null)
+                    {
+                        fdirFunction.FillInSparqlQueriesAndManifests();
+                    }
+                    fdirFunctionData.ParametersID = Guid.NewGuid();
+                    RegisterQueryAlternate(fdirFunction.Parameters, RegisteredQueries, fdirFunctionData.ParametersID);
+                }
+                if (fdirFunction.Parameters != null &&
+                    !string.IsNullOrEmpty(fdirFunction.Parameters.SparQLQuery))
+                {
+                    if (string.IsNullOrEmpty(fdirFunction.Parameters.SparQLQuery) || fdirFunction.Parameters.SparQLVariables == null)
+                    {
+                        fdirFunction.FillInSparqlQueriesAndManifests();
+                    }
+                    QueryResult? result = null;
+                    RegisterToBlackboard(fdirFunction.Parameters, _DWISClient, ref result);
+                    if (result != null)
+                    {
+                        fdirFunctionData.ParametersDestinationID = Guid.NewGuid();
+                        PlaceHolders.Add(fdirFunctionData.ParametersDestinationID, result);
+                    }
+                }
             }
         }
 
@@ -668,6 +731,37 @@ namespace DWIS.AdviceComposer.Service
                             if (chosenProcedureFunction != null && chosenProcedureFunction.Parameters != null && chosenProcedureFunction.ParametersDestinationQueryResult != null)
                             {
                                 SendValue(chosenProcedureFunction.ParametersDestinationQueryResult, chosenProcedureFunction.Parameters);
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        private void ManageFaultDetectionIsolationAndRecoveryParameters()
+        {
+            if (FaultDetectionIsolationAndRecoveryFunctionDictionary != null && PlaceHolders != null && RegisteredQueries != null)
+            {
+                foreach (var kvp in FaultDetectionIsolationAndRecoveryFunctionDictionary)
+                {
+                    if (kvp.Value.src != null)
+                    {
+                        Entry? entryContext = null;
+                        if (kvp.Value.src.ContextID != Guid.Empty)
+                        {
+                            entryContext = GetEntry(kvp.Value.src.ContextID);
+                        }
+                        if (entryContext != null &&
+                            entryContext.LiveValues != null &&
+                            entryContext.LiveValues.Count > 0 &&
+                            TryGetContextFeatures(entryContext, out List<Vocabulary.Schemas.Nouns.Enum> features))
+                        {
+                            Dictionary<string, FaultDetectionIsolationAndRecoveryData> availableDatas = new Dictionary<string, FaultDetectionIsolationAndRecoveryData>();
+                            ManageParameters(kvp.Value.src, availableDatas);
+                            FaultDetectionIsolationAndRecoveryData? chosen = ChooseFaultDetectionIsolationAndRecoveryFunction(availableDatas, features);
+                            if (chosen != null && chosen.Parameters != null && chosen.ParametersDestinationQueryResult != null)
+                            {
+                                SendValue(chosen.ParametersDestinationQueryResult, chosen.Parameters);
                             }
                             break;
                         }
@@ -1190,6 +1284,48 @@ namespace DWIS.AdviceComposer.Service
             }
             return null;
         }
+        private FaultDetectionIsolationAndRecoveryData? ChooseFaultDetectionIsolationAndRecoveryFunction(Dictionary<string, FaultDetectionIsolationAndRecoveryData> availableDatas, List<Vocabulary.Schemas.Nouns.Enum> features)
+        {
+            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, FaultDetectionIsolationAndRecoveryData data)> possibilities = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, FaultDetectionIsolationAndRecoveryData data)>();
+            SelectFaultDetectionIsolationAndRecoveryFunctionData(availableDatas, features, possibilities);
+            if (possibilities.Count > 0)
+            {
+                List<Vocabulary.Schemas.Nouns.Enum> fs = possibilities[0].features;
+                if (fs != null)
+                {
+                    List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, FaultDetectionIsolationAndRecoveryData data)> withSameFeatures = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, FaultDetectionIsolationAndRecoveryData data)>();
+                    foreach (var wol in possibilities)
+                    {
+                        if (wol.features != null)
+                        {
+                            bool eq = wol.features.Count == fs.Count;
+                            if (eq)
+                            {
+                                foreach (var f in fs)
+                                {
+                                    eq &= wol.features.Contains(f);
+                                    if (!eq)
+                                    {
+                                        break;
+                                    }
+                                }
+                            }
+                            if (eq)
+                            {
+                                withSameFeatures.Add(wol);
+                            }
+                        }
+                    }
+                    if (withSameFeatures.Count > 0)
+                    {
+                        withSameFeatures = withSameFeatures.OrderByDescending(wol => wol.Item2).ToList();
+                        return withSameFeatures[0].data;
+                    }
+                }
+                return possibilities[0].data;
+            }
+            return null;
+        }
         private ControllerFunctionData? ChooseControllerFunction(Dictionary<string, ControllerFunctionData> availableDatas, List<Vocabulary.Schemas.Nouns.Enum> features, out List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withOnlyLimits)
         {
             withOnlyLimits = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)>();
@@ -1276,6 +1412,19 @@ namespace DWIS.AdviceComposer.Service
                 }
             }
         }
+        private void AddEmpty(Dictionary<string, FaultDetectionIsolationAndRecoveryData> dict, string advisorName, FaultDetectionIsolationAndRecoveryFunctionData sample)
+        {
+            if (dict != null && !string.IsNullOrEmpty(advisorName) && sample != null)
+            {
+                FaultDetectionIsolationAndRecoveryData empty = new FaultDetectionIsolationAndRecoveryData();
+                dict.Add(advisorName, empty);
+                empty.AdvisorName = advisorName;
+                if (empty.Features == null)
+                {
+                    empty.Features = new List<Vocabulary.Schemas.Nouns.Enum>();
+                }
+            }
+        }
         private void AddEmpty(Dictionary<string, ProcedureData> dict, string advisorName, ProcedureFunctionData sample)
         {
             if (dict != null && !string.IsNullOrEmpty(advisorName) && sample != null)
@@ -1352,6 +1501,13 @@ namespace DWIS.AdviceComposer.Service
                 cf.Features.Add(f);
             }
         }
+        private void AddFeature(FaultDetectionIsolationAndRecoveryData? cf, Vocabulary.Schemas.Nouns.Enum f)
+        {
+            if (cf != null && cf.Features != null && !cf.Features.Contains(f))
+            {
+                cf.Features.Add(f);
+            }
+        }
         private void AddFeature(ControllerFunctionData? cf, Vocabulary.Schemas.Nouns.Enum f)
         {
             if (cf != null && cf.Features != null && !cf.Features.Contains(f))
@@ -1417,6 +1573,72 @@ namespace DWIS.AdviceComposer.Service
                         if (!availableDatas.ContainsKey(res[1].ID))
                         {
                             AddEmpty(availableDatas, res[1].ID, procedureFunctionData);
+                        }
+                        var cf = availableDatas[res[1].ID];
+                        AddFeature(cf, f);
+                        if (cf != null)
+                        {
+                            object? val = SearchValue(parametersSource.LiveValues, res[0]);
+                            if (val != null)
+                            {
+                                cf.Parameters = val;
+                                cf.ParametersDestinationQueryResult = parametersDestination;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        private void SelectFaultDetectionIsolationAndRecoveryFunctionData(Dictionary<string, FaultDetectionIsolationAndRecoveryData> dict, List<Vocabulary.Schemas.Nouns.Enum> features, List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, FaultDetectionIsolationAndRecoveryData data)>? possibilities)
+        {
+            if (dict != null && features != null && possibilities != null)
+            {
+                List<(List<Vocabulary.Schemas.Nouns.Enum> features, FaultDetectionIsolationAndRecoveryData data)> results = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, FaultDetectionIsolationAndRecoveryData data)>();
+                foreach (var kvp in dict)
+                {
+                    if (kvp.Value != null && kvp.Value.Features != null)
+                    {
+                        FaultDetectionIsolationAndRecoveryData fdirData = kvp.Value;
+                        List<Vocabulary.Schemas.Nouns.Enum> intersect = kvp.Value.Features.Intersect(features).ToList();
+                        if (features.Count == 0 || (intersect != null && intersect.Count > 0))
+                        {
+                            results.Add((intersect, fdirData));
+                        }
+                    }
+                }
+                if (results.Count > 0)
+                {
+                    foreach (var res in results)
+                    {
+                        possibilities.Add(new(res.features, 0, res.data));
+                        possibilities = possibilities.OrderByDescending(x => x.features.Count).ToList();
+                    }
+                }
+            }
+        }
+        private void ManageParameters(FaultDetectionIsolationAndRecoveryFunctionData functionData, Dictionary<string, FaultDetectionIsolationAndRecoveryData> availableDatas)
+        {
+            Entry? parametersSource = GetEntry(functionData.ParametersID);
+            QueryResult? parametersDestination = GetQueryResult(functionData.ParametersDestinationID);
+            if (parametersSource != null &&
+                parametersSource.Results != null &&
+                parametersSource.LiveValues != null &&
+                parametersDestination != null)
+            {
+                foreach (var res in parametersSource.Results)
+                {
+                    if (res != null && res.Count >= 3 &&
+                        res[0] != null &&
+                        res[1] != null &&
+                        res[2] != null &&
+                        !string.IsNullOrEmpty(res[0].ID) &&
+                        !string.IsNullOrEmpty(res[1].ID) &&
+                        !string.IsNullOrEmpty(res[2].ID) &&
+                        Enum.TryParse(res[2].ID, out Vocabulary.Schemas.Nouns.Enum f))
+                    {
+                        if (!availableDatas.ContainsKey(res[1].ID))
+                        {
+                            AddEmpty(availableDatas, res[1].ID, functionData);
                         }
                         var cf = availableDatas[res[1].ID];
                         AddFeature(cf, f);
