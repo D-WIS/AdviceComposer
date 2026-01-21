@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace DWIS.AdviceComposer.Service
 {
-    internal class Configuration
+    public class Configuration
     {
         public TimeSpan LoopDuration { get; set; } = TimeSpan.FromSeconds(1.0);
         public string? OPCUAURL { get; set; } = "opc.tcp://localhost:48030";
