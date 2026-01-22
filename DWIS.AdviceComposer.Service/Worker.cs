@@ -15,6 +15,10 @@ using System.Reflection;
 using OSDC.DotnetLibraries.Drilling.DrillingProperties;
 using Opc.Ua;
 using DWIS.RigOS.Capabilities.Procedure.Model;
+using DWIS.RigOS.Capabilities.FDIR.Model;
+using DWIS.RigOS.Capabilities.SOE.Model;
+using DWIS.RigOS.Capabilities.SOE.Model;
+using DWIS.RigOS.Capabilities.FDIR.Model;
 
 namespace DWIS.AdviceComposer.Service
 {
@@ -30,10 +34,21 @@ namespace DWIS.AdviceComposer.Service
 
         private Dictionary<Guid, (ControlFunctionData src, ControllerFunctionData? last, DateTime lastTimeStamp)> ControlFunctionDictionary { get; set; } = new Dictionary<Guid, (ControlFunctionData src, ControllerFunctionData? last, DateTime lastTimeStamp)>();
         private Dictionary<Guid, (ProcedureFunctionData src, ProcedureFunctionData? last, DateTime lastTimeStamp)> ProcedureFunctionDictionary { get; set; } = new Dictionary<Guid, (ProcedureFunctionData src, ProcedureFunctionData? last, DateTime lastTimeStamp)>();
+        private Dictionary<Guid, (FaultDetectionIsolationAndRecoveryFunctionData src, FaultDetectionIsolationAndRecoveryFunctionData? last, DateTime lastTimeStamp)> FaultDetectionIsolationAndRecoveryFunctionDictionary { get; set; } = new Dictionary<Guid, (FaultDetectionIsolationAndRecoveryFunctionData src, FaultDetectionIsolationAndRecoveryFunctionData? last, DateTime lastTimeStamp)>();
+        private Dictionary<Guid, (SafeOperatingEnvelopeFunctionData src, SafeOperatingEnvelopeFunctionData? last, DateTime lastTimeStamp)> SafeOperatingEnvelopeFunctionDictionary { get; set; } = new Dictionary<Guid, (SafeOperatingEnvelopeFunctionData src, SafeOperatingEnvelopeFunctionData? last, DateTime lastTimeStamp)>();
 
         private Dictionary<string, Entry> RegisteredQueries { get; set; } = new Dictionary<string, Entry>();
 
         private object lock_ = new object();
+        private static readonly JsonSerializerSettings _contextSerializerSettings = new JsonSerializerSettings
+        {
+            TypeNameHandling = TypeNameHandling.Objects,
+            Formatting = Formatting.Indented
+        };
+        private TimeSpan ControllerObsolescence => Configuration?.ControllerObsolescence ?? TimeSpan.Zero;
+        private TimeSpan ProcedureObsolescence => Configuration?.ProcedureObsolescence ?? TimeSpan.Zero;
+        private TimeSpan FDIRObolescence => Configuration?.FaultDetectionIsolationAndRecoveryObsolescence ?? TimeSpan.Zero;
+        private TimeSpan SOEObsolescence => Configuration?.SafeOperatingEnvelopeObsolescence ?? TimeSpan.Zero;
 
         private Guid _ADCSStandardInterfaceSubscription = Guid.NewGuid();
         private static string _prefix = "DWIS:AdviceComposer:";
@@ -74,6 +89,7 @@ namespace DWIS.AdviceComposer.Service
                             if (config != null)
                             {
                                 Configuration = config;
+                                EnsureObsolescenceDefaults();
                             }
                         }
                         catch (Exception e)
@@ -94,6 +110,10 @@ namespace DWIS.AdviceComposer.Service
                     }
                 }
             }
+            else
+            {
+                EnsureObsolescenceDefaults();
+            }
             if (_logger != null)
             {
                 _logger.LogInformation("Configuration Loop Duration: " + Configuration.LoopDuration.ToString());
@@ -107,6 +127,26 @@ namespace DWIS.AdviceComposer.Service
                 {
                     _logger.LogInformation("My IP Address: " + ip.AddressList[0].ToString());
                 }
+            }
+        }
+
+        private void EnsureObsolescenceDefaults()
+        {
+            if (Configuration.ControllerObsolescence == TimeSpan.Zero)
+            {
+                Configuration.ControllerObsolescence = TimeSpan.FromSeconds(5);
+            }
+            if (Configuration.ProcedureObsolescence == TimeSpan.Zero)
+            {
+                Configuration.ProcedureObsolescence = TimeSpan.FromSeconds(5);
+            }
+            if (Configuration.FaultDetectionIsolationAndRecoveryObsolescence == TimeSpan.Zero)
+            {
+                Configuration.FaultDetectionIsolationAndRecoveryObsolescence = TimeSpan.FromSeconds(5);
+            }
+            if (Configuration.SafeOperatingEnvelopeObsolescence == TimeSpan.Zero)
+            {
+                Configuration.SafeOperatingEnvelopeObsolescence = TimeSpan.FromSeconds(5);
             }
         }
 
@@ -182,6 +222,7 @@ namespace DWIS.AdviceComposer.Service
                                 Guid guid = Guid.NewGuid();
                                 LiveValue liveValue = new(node.NameSpace, node.ID, null);
                                 entry.LiveValues.Add(guid, liveValue);
+                                Entry userDataEntry = new Entry();
                                 _DWISClient.Subscribe(entry, CallbackOPCUA, new (string, string, object)[] { new(liveValue.ns, liveValue.id, guid) });
                             }
                         }
@@ -201,35 +242,16 @@ namespace DWIS.AdviceComposer.Service
                         if (entry.LiveValues.ContainsKey(guid))
                         {
                             entry.LiveValues[guid].val = dataChange.Value;
+                            entry.LiveValues[guid].Timestamp = DateTime.UtcNow;
                         }
                     }
-                    else
+                    else 
                     {
-                        LiveValue? lv = entry.LiveValues.First().Value;
-                        if (lv != null)
-                        {
-                            lv.val = dataChange.Value;
-                        }
                     }
                 }
             }
         }
 
-        private void CallbackOPCUA2(object subscriptionData, UADataChange[] changes)
-        {
-            if (subscriptionData != null && subscriptionData is Entry entry && entry.LiveValues != null && changes != null && changes.Length > 0)
-            {
-                UADataChange dataChange = changes[0];
-                if (dataChange != null && entry.LiveValues.Count > 0)
-                {
-                    LiveValue? lv = entry.LiveValues.First().Value;
-                    if (lv != null)
-                    {
-                        lv.val = dataChange.Value;
-                    }
-                }
-            }
-        }
         protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
             ConnectToBlackboard();
@@ -459,6 +481,8 @@ namespace DWIS.AdviceComposer.Service
                 ManageActivableFunctionList();
                 ManageControllerFunctionsSetPointsLimitsAndParameters();
                 ManageProcedureParameters();
+                ManageFaultDetectionIsolationAndRecoveryParameters();
+                ManageSafeOperatingEnvelopeParameters();
             }
         }
 
@@ -498,6 +522,14 @@ namespace DWIS.AdviceComposer.Service
                                             else if (activableFunction is ProcedureFunction procedureFunction)
                                             {
                                                 ManageProcedureFunction(procedureFunction, activableFunction);
+                                            }
+                                            else if (activableFunction is FaultDetectionIsolationAndRecoveryFunction fdirFunction)
+                                            {
+                                                ManageFaultDetectionIsolationAndRecoveryFunction(fdirFunction, activableFunction);
+                                            }
+                                            else if (activableFunction is SafeOperatingEnvelopeFunction soeFunction)
+                                            {
+                                                ManageSafeOperatingEnvelopeFunction(soeFunction, activableFunction);
                                             }
                                         }
                                     }
@@ -566,12 +598,12 @@ namespace DWIS.AdviceComposer.Service
             }
         }
 
-        private void ManageControllerFunction(ControllerFunction controllerFunction, ActivableFunction activableFunction)
+        private void ManageFaultDetectionIsolationAndRecoveryFunction(FaultDetectionIsolationAndRecoveryFunction fdirFunction, ActivableFunction activableFunction)
         {
             bool found = false;
-            foreach (var kvp1 in ControlFunctionDictionary)
+            foreach (var kvp1 in FaultDetectionIsolationAndRecoveryFunctionDictionary)
             {
-                if (kvp1.Value.src != null && kvp1.Value.src.ControllerFunction != null && !string.IsNullOrEmpty(kvp1.Value.src.ControllerFunction.Name) && kvp1.Value.src.ControllerFunction.Name.Equals(activableFunction.Name))
+                if (kvp1.Value.src != null && kvp1.Value.src.FaultDetectionIsolationAndRecoveryFunction != null && !string.IsNullOrEmpty(kvp1.Value.src.FaultDetectionIsolationAndRecoveryFunction.Name) && kvp1.Value.src.FaultDetectionIsolationAndRecoveryFunction.Name.Equals(activableFunction.Name))
                 {
                     found = true;
                     break;
@@ -579,125 +611,116 @@ namespace DWIS.AdviceComposer.Service
             }
             if (!found)
             {
-                Guid controlFunctionID = Guid.NewGuid();
-                ControlFunctionData controlFunctionData = new ControlFunctionData();
-                controlFunctionData.ControllerFunction = controllerFunction;
-                ControlFunctionDictionary.Add(controlFunctionID, new (controlFunctionData, null, DateTime.MinValue));
+                Guid fdirFunctionID = Guid.NewGuid();
+                FaultDetectionIsolationAndRecoveryFunctionData fdirFunctionData = new FaultDetectionIsolationAndRecoveryFunctionData();
+                fdirFunctionData.FaultDetectionIsolationAndRecoveryFunction = fdirFunction;
+                FaultDetectionIsolationAndRecoveryFunctionDictionary.Add(fdirFunctionID, new(fdirFunctionData, null, DateTime.MinValue));
 
-                if (controllerFunction.ContextSemanticInfo != null)
+                if (fdirFunction.ContextSemanticInfo != null)
                 {
-                    if (string.IsNullOrEmpty(controllerFunction.ContextSemanticInfo.SparQLQuery) || controllerFunction.ContextSemanticInfo.SparQLVariables == null)
+                    if (string.IsNullOrEmpty(fdirFunction.ContextSemanticInfo.SparQLQuery) || fdirFunction.ContextSemanticInfo.SparQLVariables == null)
                     {
-                        controllerFunction.FillInSparqlQueriesAndManifests();
+                        fdirFunction.FillInSparqlQueriesAndManifests();
                     }
-                    controlFunctionData.ContextID = Guid.NewGuid();
-                    RegisterQuery(controllerFunction.ContextSemanticInfo, RegisteredQueries, controlFunctionData.ContextID);
+                    fdirFunctionData.ContextID = Guid.NewGuid();
+                    RegisterQuery(fdirFunction.ContextSemanticInfo, RegisteredQueries, fdirFunctionData.ContextID);
                 }
-                if (controllerFunction.Parameters != null)
+                if (fdirFunction.Parameters != null)
                 {
-                    if (string.IsNullOrEmpty(controllerFunction.Parameters.SparQLAlternateQuery) || controllerFunction.Parameters.SparQLAlternateVariables == null)
+                    if (string.IsNullOrEmpty(fdirFunction.Parameters.SparQLQuery) || fdirFunction.Parameters.SparQLVariables == null)
                     {
-                        controllerFunction.FillInSparqlQueriesAndManifests();
+                        fdirFunction.FillInSparqlQueriesAndManifests();
                     }
-                    controlFunctionData.ParametersID = Guid.NewGuid();
-                    RegisterQueryAlternate(controllerFunction.Parameters, RegisteredQueries, controlFunctionData.ParametersID);
+                    fdirFunctionData.ParametersID = Guid.NewGuid();
+                    RegisterQueryAlternate(fdirFunction.Parameters, RegisteredQueries, fdirFunctionData.ParametersID);
                 }
-                if (controllerFunction.Parameters != null &&
-                    !string.IsNullOrEmpty(controllerFunction.Parameters.SparQLQuery))
+                if (fdirFunction.Parameters != null &&
+                    !string.IsNullOrEmpty(fdirFunction.Parameters.SparQLQuery))
                 {
-                    if (string.IsNullOrEmpty(controllerFunction.Parameters.SparQLQuery) || controllerFunction.Parameters.SparQLVariables == null)
+                    if (string.IsNullOrEmpty(fdirFunction.Parameters.SparQLQuery) || fdirFunction.Parameters.SparQLVariables == null)
                     {
-                        controllerFunction.FillInSparqlQueriesAndManifests();
+                        fdirFunction.FillInSparqlQueriesAndManifests();
                     }
                     QueryResult? result = null;
-                    RegisterToBlackboard(controllerFunction.Parameters, _DWISClient, ref result);
+                    RegisterToBlackboard(fdirFunction.Parameters, _DWISClient, ref result);
                     if (result != null)
                     {
-                        controlFunctionData.ParametersDestinationID = Guid.NewGuid();
-                        PlaceHolders.Add(controlFunctionData.ParametersDestinationID, result);
-                    }
-                }
-                if (controllerFunction.Controllers != null)
-                {
-                    foreach (Controller controller in controllerFunction.Controllers)
-                    {
-                        if (controller != null)
-                        {
-                            ControlData controllerData = new ControlData();
-                            controlFunctionData.controllerDatas.Add(controllerData);
-                            if (controller.Parameters != null)
-                            {
-                                controllerData.ParametersID = Guid.NewGuid();
-                                RegisterQueryAlternate(controller.Parameters, RegisteredQueries, controllerData.ParametersID);
-                            }
-                            if (controller.Parameters != null &&
-                                !string.IsNullOrEmpty(controller.Parameters.SparQLQuery) &&
-                                controller.Parameters.SparQLVariables != null &&
-                                controller.Parameters.SparQLVariables.Count > 0)
-                            {
-                                QueryResult? result = null;
-                                RegisterToBlackboard(controller.Parameters, _DWISClient, ref result);
-                                if (result != null)
-                                {
-                                    controllerData.ParametersDestinationID = Guid.NewGuid();
-                                    PlaceHolders.Add(controllerData.ParametersDestinationID, result);
-                                }
-                            }
-                            if (controller is ControllerWithOnlyLimits controllerWithOnlyLimits)
-                            {
-                                if (controllerWithOnlyLimits.ControllerLimits != null)
-                                {
-                                    ManageLimits(controllerWithOnlyLimits.ControllerLimits, controllerData);
-                                }
-                            }
-                            else if (controller is ControllerWithControlledVariable controllerWithControlledVariable)
-                            {
-                                if (controllerWithControlledVariable.SetPointReference != null &&
-                                    !string.IsNullOrEmpty(controllerWithControlledVariable.SetPointReference.SparQLAlternateQuery) &&
-                                    controllerWithControlledVariable.SetPointReference.SparQLAlternateVariables != null &&
-                                    controllerWithControlledVariable.SetPointReference.SparQLAlternateVariables.Count > 0)
-                                {
-                                    controllerData.SetPointSourceID = Guid.NewGuid();
-                                    RegisterQueryAlternate(controllerWithControlledVariable.SetPointReference, RegisteredQueries, controllerData.SetPointSourceID);
-                                }
-                                if (controllerWithControlledVariable.SetPointReference != null &&
-                                    !string.IsNullOrEmpty(controllerWithControlledVariable.SetPointReference.SparQLQuery) &&
-                                    controllerWithControlledVariable.SetPointReference.SparQLVariables != null &&
-                                    controllerWithControlledVariable.SetPointReference.SparQLVariables.Count > 0)
-                                {
-                                    QueryResult? result = null;
-                                    RegisterToBlackboard(controllerWithControlledVariable.SetPointReference, _DWISClient, ref result);
-                                    if (result != null)
-                                    {
-                                        controllerData.SetPointDestinationID = Guid.NewGuid();
-                                        PlaceHolders.Add(controllerData.SetPointDestinationID, result);
-                                    }
-                                }
-                                if (controllerWithControlledVariable.ControlledVariableReference != null &&
-                                    !string.IsNullOrEmpty(controllerWithControlledVariable.ControlledVariableReference.SparQLQuery) &&
-                                    controllerWithControlledVariable.ControlledVariableReference.SparQLVariables != null &&
-                                    controllerWithControlledVariable.ControlledVariableReference.SparQLVariables.Count > 0)
-                                {
-                                    controllerData.MeasuredValueID = Guid.NewGuid();
-                                    RegisterQuery(controllerWithControlledVariable.ControlledVariableReference, RegisteredQueries, controllerData.MeasuredValueID);
-                                }
-                                if (controllerWithControlledVariable.SetPointMaxRateOfChange != null &&
-                                    !string.IsNullOrEmpty(controllerWithControlledVariable.SetPointMaxRateOfChange.SparQLQuery) &&
-                                    controllerWithControlledVariable.SetPointMaxRateOfChange.SparQLVariables != null &&
-                                    controllerWithControlledVariable.SetPointMaxRateOfChange.SparQLVariables.Count > 0)
-                                {
-                                    controllerData.MaxRateOfChangeID = Guid.NewGuid();
-                                    RegisterQuery(controllerWithControlledVariable.SetPointMaxRateOfChange, RegisteredQueries, controllerData.MaxRateOfChangeID);
-                                }
-                                if (controller is ControllerWithLimits controllerWithLimits)
-                                {
-                                    ManageLimits(controllerWithLimits.ControllerLimits, controllerData);
-                                }
-                            }
-                        }
+                        fdirFunctionData.ParametersDestinationID = Guid.NewGuid();
+                        PlaceHolders.Add(fdirFunctionData.ParametersDestinationID, result);
                     }
                 }
             }
+        }
+
+        private void ManageSafeOperatingEnvelopeFunction(SafeOperatingEnvelopeFunction soeFunction, ActivableFunction activableFunction)
+        {
+            bool found = false;
+            foreach (var kvp1 in SafeOperatingEnvelopeFunctionDictionary)
+            {
+                if (kvp1.Value.src != null && kvp1.Value.src.SafeOperatingEnvelopeFunction != null && !string.IsNullOrEmpty(kvp1.Value.src.SafeOperatingEnvelopeFunction.Name) && kvp1.Value.src.SafeOperatingEnvelopeFunction.Name.Equals(activableFunction.Name))
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                Guid soeFunctionID = Guid.NewGuid();
+                SafeOperatingEnvelopeFunctionData soeFunctionData = new SafeOperatingEnvelopeFunctionData();
+                soeFunctionData.SafeOperatingEnvelopeFunction = soeFunction;
+                SafeOperatingEnvelopeFunctionDictionary.Add(soeFunctionID, new(soeFunctionData, null, DateTime.MinValue));
+
+                if (soeFunction.ContextSemanticInfo != null)
+                {
+                    if (string.IsNullOrEmpty(soeFunction.ContextSemanticInfo.SparQLQuery) || soeFunction.ContextSemanticInfo.SparQLVariables == null)
+                    {
+                        soeFunction.FillInSparqlQueriesAndManifests();
+                    }
+                    soeFunctionData.ContextID = Guid.NewGuid();
+                    RegisterQuery(soeFunction.ContextSemanticInfo, RegisteredQueries, soeFunctionData.ContextID);
+                }
+                if (soeFunction.Parameters != null)
+                {
+                    if (string.IsNullOrEmpty(soeFunction.Parameters.SparQLQuery) || soeFunction.Parameters.SparQLVariables == null)
+                    {
+                        soeFunction.FillInSparqlQueriesAndManifests();
+                    }
+                    soeFunctionData.ParametersID = Guid.NewGuid();
+                    RegisterQueryAlternate(soeFunction.Parameters, RegisteredQueries, soeFunctionData.ParametersID);
+                }
+                if (soeFunction.Parameters != null &&
+                    !string.IsNullOrEmpty(soeFunction.Parameters.SparQLQuery))
+                {
+                    if (string.IsNullOrEmpty(soeFunction.Parameters.SparQLQuery) || soeFunction.Parameters.SparQLVariables == null)
+                    {
+                        soeFunction.FillInSparqlQueriesAndManifests();
+                    }
+                    QueryResult? result = null;
+                    RegisterToBlackboard(soeFunction.Parameters, _DWISClient, ref result);
+                    if (result != null)
+                    {
+                        soeFunctionData.ParametersDestinationID = Guid.NewGuid();
+                        PlaceHolders.Add(soeFunctionData.ParametersDestinationID, result);
+                    }
+                }
+            }
+        }
+
+        private void ManageControllerFunction(ControllerFunction controllerFunction, ActivableFunction activableFunction)
+        {
+            if (ControlFunctionAlreadyRegistered(activableFunction.Name))
+            {
+                return;
+            }
+
+            Guid controlFunctionID = Guid.NewGuid();
+            ControlFunctionData controlFunctionData = new ControlFunctionData();
+            controlFunctionData.ControllerFunction = controllerFunction;
+            ControlFunctionDictionary.Add(controlFunctionID, new(controlFunctionData, null, DateTime.MinValue));
+
+            RegisterControllerContext(controllerFunction, controlFunctionData);
+            RegisterControllerParameters(controllerFunction, controlFunctionData);
+            RegisterControllers(controllerFunction, controlFunctionData);
         }
         private void ManageLimits(Dictionary<string, ControllerLimit>? controllerLimits, ControlData controllerData)
         {
@@ -790,94 +813,81 @@ namespace DWIS.AdviceComposer.Service
                         }
                         if (entryContext != null &&
                             entryContext.LiveValues != null &&
-                            entryContext.LiveValues.Count > 0)
+                            entryContext.LiveValues.Count > 0 &&
+                            TryGetContextFeatures(entryContext, ProcedureObsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features))
                         {
                             Dictionary<string, ProcedureData> availableDatas = new Dictionary<string, ProcedureData>();
-                            foreach (var kvp2 in entryContext.LiveValues)
+                            ManageParameters(kvp.Value.src, availableDatas);
+                            ProcedureData? chosenProcedureFunction = ChooseProcedureFunction(availableDatas, features);
+                            if (chosenProcedureFunction != null && chosenProcedureFunction.Parameters != null && chosenProcedureFunction.ParametersDestinationQueryResult != null)
                             {
-                                if (kvp2.Value != null && kvp2.Value.val != null && kvp2.Value.val is string json)
-                                {
-                                    var settings = new JsonSerializerSettings
-                                    {
-                                        TypeNameHandling = TypeNameHandling.Objects,
-                                        Formatting = Formatting.Indented
-                                    };
-                                    try
-                                    {
-                                        DWISContext? context = JsonConvert.DeserializeObject<DWISContext>(json, settings);
-                                        if (context != null)
-                                        {
-                                            List<Vocabulary.Schemas.Nouns.Enum> features = new List<Vocabulary.Schemas.Nouns.Enum>();
-                                            if (context.CapabilityPreferences != null)
-                                            {
-                                                foreach (var feature in context.CapabilityPreferences)
-                                                {
-                                                    features.Add(feature);
-                                                }
-                                            }
-                                            ManageParameters(kvp.Value.src, availableDatas);
-                                            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)> possibilities = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)>();
-                                            SelectProcedureFunctionData(availableDatas, features, possibilities);
-                                            ProcedureData? chosenProcedureFunction = null;
-                                            if (possibilities.Count > 0)
-                                            {
-                                                List<Vocabulary.Schemas.Nouns.Enum> fs = possibilities[0].features;
-                                                if (fs != null)
-                                                {
-                                                    List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)> withSameFeatures = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)>();
-                                                    foreach (var wol in possibilities)
-                                                    {
-                                                        if (wol.features != null)
-                                                        {
-                                                            bool eq = wol.features.Count == fs.Count;
-                                                            if (eq)
-                                                            {
-                                                                foreach (var f in fs)
-                                                                {
-                                                                    eq &= wol.features.Contains(f);
-                                                                    if (!eq)
-                                                                    {
-                                                                        break;
-                                                                    }
-                                                                }
-                                                            }
-                                                            if (eq)
-                                                            {
-                                                                withSameFeatures.Add(wol);
-                                                            }
-                                                        }
-                                                    }
-                                                    if (withSameFeatures.Count > 0)
-                                                    {
-                                                        withSameFeatures = withSameFeatures.OrderByDescending(wol => wol.Item2).ToList();
-                                                        chosenProcedureFunction = withSameFeatures[0].data;
-                                                    }
-                                                }
-                                                if (chosenProcedureFunction == null)
-                                                {
-                                                    chosenProcedureFunction = possibilities[0].data;
-                                                }
-                                            }
-                                            if (possibilities.Count > 0 && chosenProcedureFunction == null)
-                                            {
-                                                chosenProcedureFunction = possibilities[0].data;
-                                            }
-                                            if (chosenProcedureFunction != null)
-                                            {
-                                                if (chosenProcedureFunction.Parameters != null && chosenProcedureFunction.ParametersDestinationQueryResult != null)
-                                                {
-                                                    SendValue(chosenProcedureFunction.ParametersDestinationQueryResult, chosenProcedureFunction.Parameters);
-                                                }
-                                            }
-                                            break;
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        _logger?.LogError(ex.ToString());
-                                    }
-                                }
+                                SendValue(chosenProcedureFunction.ParametersDestinationQueryResult, chosenProcedureFunction.Parameters);
                             }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        private void ManageFaultDetectionIsolationAndRecoveryParameters()
+        {
+            if (FaultDetectionIsolationAndRecoveryFunctionDictionary != null && PlaceHolders != null && RegisteredQueries != null)
+            {
+                foreach (var kvp in FaultDetectionIsolationAndRecoveryFunctionDictionary)
+                {
+                    if (kvp.Value.src != null)
+                    {
+                        Entry? entryContext = null;
+                        if (kvp.Value.src.ContextID != Guid.Empty)
+                        {
+                            entryContext = GetEntry(kvp.Value.src.ContextID);
+                        }
+                        if (entryContext != null &&
+                            entryContext.LiveValues != null &&
+                            entryContext.LiveValues.Count > 0 &&
+                            TryGetContextFeatures(entryContext, FDIRObolescence, out List<Vocabulary.Schemas.Nouns.Enum> features))
+                        {
+                            Dictionary<string, FaultDetectionIsolationAndRecoveryData> availableDatas = new Dictionary<string, FaultDetectionIsolationAndRecoveryData>();
+                            ManageParameters(kvp.Value.src, availableDatas);
+                            FaultDetectionIsolationAndRecoveryData? chosen = ChooseFaultDetectionIsolationAndRecoveryFunction(availableDatas, features);
+                            if (chosen != null && chosen.Parameters != null && chosen.ParametersDestinationQueryResult != null)
+                            {
+                                SendValue(chosen.ParametersDestinationQueryResult, chosen.Parameters);
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        private void ManageSafeOperatingEnvelopeParameters()
+        {
+            if (SafeOperatingEnvelopeFunctionDictionary != null && PlaceHolders != null && RegisteredQueries != null)
+            {
+                foreach (var kvp in SafeOperatingEnvelopeFunctionDictionary)
+                {
+                    if (kvp.Value.src != null)
+                    {
+                        Entry? entryContext = null;
+                        if (kvp.Value.src.ContextID != Guid.Empty)
+                        {
+                            entryContext = GetEntry(kvp.Value.src.ContextID);
+                        }
+                        if (entryContext != null &&
+                            entryContext.LiveValues != null &&
+                            entryContext.LiveValues.Count > 0 &&
+                            TryGetContextFeatures(entryContext, SOEObsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features))
+                        {
+                            Dictionary<string, SafeOperatingEnvelopeData> availableDatas = new Dictionary<string, SafeOperatingEnvelopeData>();
+                            ManageParameters(kvp.Value.src, availableDatas);
+                            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, SafeOperatingEnvelopeData data)> candidates = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, SafeOperatingEnvelopeData data)>();
+                            SelectSafeOperatingEnvelopeFunctionData(availableDatas, features, candidates);
+                            SafeOperatingEnvelopeData? combined = CombineSafeOperatingEnvelopes(candidates);
+                            if (combined != null && combined.Parameters != null && combined.ParametersDestinationQueryResult != null)
+                            {
+                                SendValue(combined.ParametersDestinationQueryResult, combined.Parameters);
+                            }
+                            break;
                         }
                     }
                 }
@@ -898,131 +908,23 @@ namespace DWIS.AdviceComposer.Service
                         }
                         if (entryContext != null &&
                             entryContext.LiveValues != null &&
-                            entryContext.LiveValues.Count > 0)
+                            entryContext.LiveValues.Count > 0 &&
+                            TryGetContextFeatures(entryContext, ControllerObsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features))
                         {
                             Dictionary<string, ControllerFunctionData> availableDatas = new Dictionary<string, ControllerFunctionData>();
-                            foreach (var kvp2 in entryContext.LiveValues)
+                            ManageParameters(kvp.Value.src, availableDatas);
+                            FindAvailableDatas(availableDatas, kvp.Value.src.controllerDatas, kvp.Value.src);
+                            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withOnlyLimits;
+                            ControllerFunctionData? chosenControllerFunction = ChooseControllerFunction(availableDatas, features, out withOnlyLimits);
+                            if (chosenControllerFunction != null)
                             {
-                                if (kvp2.Value != null && kvp2.Value.val != null && kvp2.Value.val is string json)
+                                if (chosenControllerFunction.Parameters != null && chosenControllerFunction.ParametersDestinationQueryResult != null)
                                 {
-                                    var settings = new JsonSerializerSettings
-                                    {
-                                        TypeNameHandling = TypeNameHandling.Objects,
-                                        Formatting = Formatting.Indented
-                                    };
-                                    try
-                                    {
-                                        DWISContext? context = JsonConvert.DeserializeObject<DWISContext>(json, settings);
-                                        if (context != null)
-                                        {
-                                            List<Vocabulary.Schemas.Nouns.Enum> features = new List<Vocabulary.Schemas.Nouns.Enum>();
-                                            if (context.CapabilityPreferences != null)
-                                            {
-                                                foreach (var feature in context.CapabilityPreferences)
-                                                {
-                                                    features.Add(feature);
-                                                }
-                                            }
-                                            ManageParameters(kvp.Value.src, availableDatas);
-                                            FindAvailableDatas(availableDatas, kvp.Value.src.controllerDatas, kvp.Value.src);
-                                            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withOnlyLimits = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)>();
-                                            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withSetPoints = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)>();
-                                            SelectControllerFunctionData(availableDatas, features, withOnlyLimits, withSetPoints);
-                                            ControllerFunctionData? chosenControllerFunction = null;
-                                            if (withSetPoints.Count > 0)
-                                            {
-                                                List<Vocabulary.Schemas.Nouns.Enum> fs = withSetPoints[0].features;
-                                                if (fs != null)
-                                                {
-                                                    List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withSameFeatures = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)>();
-                                                    foreach (var wol in withSetPoints)
-                                                    {
-                                                        if (wol.features != null)
-                                                        {
-                                                            bool eq = wol.features.Count == fs.Count;
-                                                            if (eq)
-                                                            {
-                                                                foreach (var f in fs)
-                                                                {
-                                                                    eq &= wol.features.Contains(f);
-                                                                    if (!eq)
-                                                                    {
-                                                                        break;
-                                                                    }
-                                                                }
-                                                            }
-                                                            if (eq)
-                                                            {
-                                                                withSameFeatures.Add(wol);
-                                                            }
-                                                        }
-                                                    }
-                                                    if (withSameFeatures.Count > 0)
-                                                    {
-                                                        withSameFeatures = withSameFeatures.OrderByDescending(wol => wol.Item2).ToList();
-                                                        chosenControllerFunction = withSameFeatures[0].data;
-                                                    }
-                                                }
-                                                if (chosenControllerFunction == null)
-                                                {
-                                                    chosenControllerFunction = withSetPoints[0].data;
-                                                }
-                                            }
-                                            if (withOnlyLimits.Count > 0 && chosenControllerFunction == null)
-                                            {
-                                                chosenControllerFunction = withOnlyLimits[0].data;
-                                            }
-                                            if (chosenControllerFunction != null)
-                                            {
-                                                if (chosenControllerFunction.Parameters != null && chosenControllerFunction.ParametersDestinationQueryResult != null)
-                                                {
-                                                    SendValue(chosenControllerFunction.ParametersDestinationQueryResult, chosenControllerFunction.Parameters);
-                                                }
-                                                foreach (var wol in withOnlyLimits)
-                                                {
-                                                    if (wol.data != null)
-                                                    {
-                                                        MergeLimits(chosenControllerFunction, wol.data);
-                                                    }
-                                                }
-                                                ProcessRateOfChange(chosenControllerFunction, kvp.Key);
-                                                foreach (var c in chosenControllerFunction.ControllerDatas)
-                                                {
-                                                    if (c != null)
-                                                    {
-                                                        if (c.ParametersDestinationQueryResult != null && c.Parameters != null)
-                                                        {
-                                                            SendValue(c.ParametersDestinationQueryResult, c.Parameters);
-                                                        }
-                                                        if (c.SetPointDestinationQueryResult != null && c.SetPointRecommendation != null) 
-                                                        {
-                                                            SendValue(c.SetPointDestinationQueryResult, c.SetPointRecommendation);
-                                                        }
-                                                        if (c.ControllerLimitDatas != null)
-                                                        {
-                                                            foreach (var l in c.ControllerLimitDatas)
-                                                            {
-                                                                if (l != null)
-                                                                {
-                                                                    if (l.LimitDestinationQueryResult != null && l.LimitRecommendation != null)
-                                                                    {
-                                                                        SendValue(l.LimitDestinationQueryResult, l.LimitRecommendation);
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            break;
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        _logger?.LogError(ex.ToString());
-                                    }
+                                    SendValue(chosenControllerFunction.ParametersDestinationQueryResult, chosenControllerFunction.Parameters);
                                 }
+                                SendControllerFunctionOutputs(chosenControllerFunction, withOnlyLimits, kvp.Key);
                             }
+                            break;
                         }
                     }
                 }
@@ -1284,6 +1186,583 @@ namespace DWIS.AdviceComposer.Service
                 }
             }
         }
+        private bool ControlFunctionAlreadyRegistered(string activableFunctionName)
+        {
+            bool found = false;
+            foreach (var kvp1 in ControlFunctionDictionary)
+            {
+                if (kvp1.Value.src != null && kvp1.Value.src.ControllerFunction != null && !string.IsNullOrEmpty(kvp1.Value.src.ControllerFunction.Name) && kvp1.Value.src.ControllerFunction.Name.Equals(activableFunctionName))
+                {
+                    found = true;
+                    break;
+                }
+            }
+            return found;
+        }
+        private void RegisterControllerContext(ControllerFunction controllerFunction, ControlFunctionData controlFunctionData)
+        {
+            if (controllerFunction.ContextSemanticInfo != null)
+            {
+                if (string.IsNullOrEmpty(controllerFunction.ContextSemanticInfo.SparQLQuery) || controllerFunction.ContextSemanticInfo.SparQLVariables == null)
+                {
+                    controllerFunction.FillInSparqlQueriesAndManifests();
+                }
+                controlFunctionData.ContextID = Guid.NewGuid();
+                RegisterQuery(controllerFunction.ContextSemanticInfo, RegisteredQueries, controlFunctionData.ContextID);
+            }
+        }
+        private void RegisterControllerParameters(ControllerFunction controllerFunction, ControlFunctionData controlFunctionData)
+        {
+            if (controllerFunction.Parameters != null)
+            {
+                if (string.IsNullOrEmpty(controllerFunction.Parameters.SparQLAlternateQuery) || controllerFunction.Parameters.SparQLAlternateVariables == null)
+                {
+                    controllerFunction.FillInSparqlQueriesAndManifests();
+                }
+                controlFunctionData.ParametersID = Guid.NewGuid();
+                RegisterQueryAlternate(controllerFunction.Parameters, RegisteredQueries, controlFunctionData.ParametersID);
+            }
+            if (controllerFunction.Parameters != null &&
+                !string.IsNullOrEmpty(controllerFunction.Parameters.SparQLQuery))
+            {
+                if (string.IsNullOrEmpty(controllerFunction.Parameters.SparQLQuery) || controllerFunction.Parameters.SparQLVariables == null)
+                {
+                    controllerFunction.FillInSparqlQueriesAndManifests();
+                }
+                QueryResult? result = null;
+                RegisterToBlackboard(controllerFunction.Parameters, _DWISClient, ref result);
+                if (result != null)
+                {
+                    controlFunctionData.ParametersDestinationID = Guid.NewGuid();
+                    PlaceHolders.Add(controlFunctionData.ParametersDestinationID, result);
+                }
+            }
+        }
+        private void RegisterControllers(ControllerFunction controllerFunction, ControlFunctionData controlFunctionData)
+        {
+            if (controllerFunction.Controllers != null)
+            {
+                foreach (Controller controller in controllerFunction.Controllers)
+                {
+                    if (controller != null)
+                    {
+                        ControlData controllerData = new ControlData();
+                        controlFunctionData.controllerDatas.Add(controllerData);
+                        RegisterControllerParameters(controller, controllerData);
+                        RegisterControllerSetPoints(controller, controllerData);
+                        RegisterControllerLimits(controller, controllerData);
+                    }
+                }
+            }
+        }
+        private void RegisterControllerParameters(Controller controller, ControlData controllerData)
+        {
+            if (controller.Parameters != null)
+            {
+                controllerData.ParametersID = Guid.NewGuid();
+                RegisterQueryAlternate(controller.Parameters, RegisteredQueries, controllerData.ParametersID);
+            }
+            if (controller.Parameters != null &&
+                !string.IsNullOrEmpty(controller.Parameters.SparQLQuery) &&
+                controller.Parameters.SparQLVariables != null &&
+                controller.Parameters.SparQLVariables.Count > 0)
+            {
+                QueryResult? result = null;
+                RegisterToBlackboard(controller.Parameters, _DWISClient, ref result);
+                if (result != null)
+                {
+                    controllerData.ParametersDestinationID = Guid.NewGuid();
+                    PlaceHolders.Add(controllerData.ParametersDestinationID, result);
+                }
+            }
+        }
+        private void RegisterControllerSetPoints(Controller controller, ControlData controllerData)
+        {
+            if (controller is ControllerWithControlledVariable controllerWithControlledVariable)
+            {
+                if (controllerWithControlledVariable.SetPointReference != null &&
+                    !string.IsNullOrEmpty(controllerWithControlledVariable.SetPointReference.SparQLAlternateQuery) &&
+                    controllerWithControlledVariable.SetPointReference.SparQLAlternateVariables != null &&
+                    controllerWithControlledVariable.SetPointReference.SparQLAlternateVariables.Count > 0)
+                {
+                    controllerData.SetPointSourceID = Guid.NewGuid();
+                    RegisterQueryAlternate(controllerWithControlledVariable.SetPointReference, RegisteredQueries, controllerData.SetPointSourceID);
+                }
+                if (controllerWithControlledVariable.SetPointReference != null &&
+                    !string.IsNullOrEmpty(controllerWithControlledVariable.SetPointReference.SparQLQuery) &&
+                    controllerWithControlledVariable.SetPointReference.SparQLVariables != null &&
+                    controllerWithControlledVariable.SetPointReference.SparQLVariables.Count > 0)
+                {
+                    QueryResult? result = null;
+                    RegisterToBlackboard(controllerWithControlledVariable.SetPointReference, _DWISClient, ref result);
+                    if (result != null)
+                    {
+                        controllerData.SetPointDestinationID = Guid.NewGuid();
+                        PlaceHolders.Add(controllerData.SetPointDestinationID, result);
+                    }
+                }
+                if (controllerWithControlledVariable.ControlledVariableReference != null &&
+                    !string.IsNullOrEmpty(controllerWithControlledVariable.ControlledVariableReference.SparQLQuery) &&
+                    controllerWithControlledVariable.ControlledVariableReference.SparQLVariables != null &&
+                    controllerWithControlledVariable.ControlledVariableReference.SparQLVariables.Count > 0)
+                {
+                    controllerData.MeasuredValueID = Guid.NewGuid();
+                    RegisterQuery(controllerWithControlledVariable.ControlledVariableReference, RegisteredQueries, controllerData.MeasuredValueID);
+                }
+                if (controllerWithControlledVariable.SetPointMaxRateOfChange != null &&
+                    !string.IsNullOrEmpty(controllerWithControlledVariable.SetPointMaxRateOfChange.SparQLQuery) &&
+                    controllerWithControlledVariable.SetPointMaxRateOfChange.SparQLVariables != null &&
+                    controllerWithControlledVariable.SetPointMaxRateOfChange.SparQLVariables.Count > 0)
+                {
+                    controllerData.MaxRateOfChangeID = Guid.NewGuid();
+                    RegisterQuery(controllerWithControlledVariable.SetPointMaxRateOfChange, RegisteredQueries, controllerData.MaxRateOfChangeID);
+                }
+            }
+        }
+        private void RegisterControllerLimits(Controller controller, ControlData controllerData)
+        {
+            if (controller is ControllerWithOnlyLimits controllerWithOnlyLimits)
+            {
+                if (controllerWithOnlyLimits.ControllerLimits != null)
+                {
+                    ManageLimits(controllerWithOnlyLimits.ControllerLimits, controllerData);
+                }
+            }
+            else if (controller is ControllerWithLimits controllerWithLimits)
+            {
+                ManageLimits(controllerWithLimits.ControllerLimits, controllerData);
+            }
+        }
+        private bool TryGetContextFeatures(Entry entryContext, TimeSpan obsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features)
+        {
+            features = new List<Vocabulary.Schemas.Nouns.Enum>();
+            if (entryContext != null && entryContext.LiveValues != null && entryContext.LiveValues.Count > 0)
+            {
+                foreach (var kvp2 in entryContext.LiveValues)
+                {
+                    if (kvp2.Value != null && kvp2.Value.val != null && kvp2.Value.val is string json && IsFresh(kvp2.Value.Timestamp, obsolescence))
+                    {
+                        try
+                        {
+                            DWISContext? context = JsonConvert.DeserializeObject<DWISContext>(json, _contextSerializerSettings);
+                            if (context != null)
+                            {
+                                if (context.CapabilityPreferences != null)
+                                {
+                                    foreach (var feature in context.CapabilityPreferences)
+                                    {
+                                        features.Add(feature);
+                                    }
+                                }
+                                return true;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.LogError(ex.ToString());
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+        private ProcedureData? ChooseProcedureFunction(Dictionary<string, ProcedureData> availableDatas, List<Vocabulary.Schemas.Nouns.Enum> features)
+        {
+            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)> possibilities = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)>();
+            SelectProcedureFunctionData(availableDatas, features, possibilities);
+            if (possibilities.Count > 0)
+            {
+                List<Vocabulary.Schemas.Nouns.Enum> fs = possibilities[0].features;
+                if (fs != null)
+                {
+                    List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)> withSameFeatures = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ProcedureData data)>();
+                    foreach (var wol in possibilities)
+                    {
+                        if (wol.features != null)
+                        {
+                            bool eq = wol.features.Count == fs.Count;
+                            if (eq)
+                            {
+                                foreach (var f in fs)
+                                {
+                                    eq &= wol.features.Contains(f);
+                                    if (!eq)
+                                    {
+                                        break;
+                                    }
+                                }
+                            }
+                            if (eq)
+                            {
+                                withSameFeatures.Add(wol);
+                            }
+                        }
+                    }
+                    if (withSameFeatures.Count > 0)
+                    {
+                        withSameFeatures = withSameFeatures.OrderByDescending(wol => wol.Item2).ToList();
+                        return withSameFeatures[0].data;
+                    }
+                }
+                return possibilities[0].data;
+            }
+            return null;
+        }
+        private SafeOperatingEnvelopeData? CombineSafeOperatingEnvelopes(List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, SafeOperatingEnvelopeData data)> candidates)
+        {
+            if (candidates == null || candidates.Count == 0)
+            {
+                return null;
+            }
+            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, SafeOperatingEnvelopeData data)> ordered = candidates.OrderByDescending(c => c.Item2).ToList();
+            while (ordered.Count > 0)
+            {
+                var intersection = TryIntersectEnvelopes(ordered.Select(c => c.data).ToList(), out object? parameter);
+                if (intersection && parameter != null)
+                {
+                    SafeOperatingEnvelopeData result = new SafeOperatingEnvelopeData();
+                    result.AdvisorName = ordered[0].data.AdvisorName;
+                    result.ParametersDestinationQueryResult = ordered[0].data.ParametersDestinationQueryResult;
+                    result.Parameters = parameter;
+                    return result;
+                }
+                ordered.RemoveAt(ordered.Count - 1);
+            }
+            return null;
+        }
+        private FaultDetectionIsolationAndRecoveryData? ChooseFaultDetectionIsolationAndRecoveryFunction(Dictionary<string, FaultDetectionIsolationAndRecoveryData> availableDatas, List<Vocabulary.Schemas.Nouns.Enum> features)
+        {
+            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, FaultDetectionIsolationAndRecoveryData data)> possibilities = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, FaultDetectionIsolationAndRecoveryData data)>();
+            SelectFaultDetectionIsolationAndRecoveryFunctionData(availableDatas, features, possibilities);
+            if (possibilities.Count > 0)
+            {
+                List<Vocabulary.Schemas.Nouns.Enum> fs = possibilities[0].features;
+                if (fs != null)
+                {
+                    List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, FaultDetectionIsolationAndRecoveryData data)> withSameFeatures = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, FaultDetectionIsolationAndRecoveryData data)>();
+                    foreach (var wol in possibilities)
+                    {
+                        if (wol.features != null)
+                        {
+                            bool eq = wol.features.Count == fs.Count;
+                            if (eq)
+                            {
+                                foreach (var f in fs)
+                                {
+                                    eq &= wol.features.Contains(f);
+                                    if (!eq)
+                                    {
+                                        break;
+                                    }
+                                }
+                            }
+                            if (eq)
+                            {
+                                withSameFeatures.Add(wol);
+                            }
+                        }
+                    }
+                    if (withSameFeatures.Count > 0)
+                    {
+                        withSameFeatures = withSameFeatures.OrderByDescending(wol => wol.Item2).ToList();
+                        return withSameFeatures[0].data;
+                    }
+                }
+                return possibilities[0].data;
+            }
+            return null;
+        }
+        private ControllerFunctionData? ChooseControllerFunction(Dictionary<string, ControllerFunctionData> availableDatas, List<Vocabulary.Schemas.Nouns.Enum> features, out List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withOnlyLimits)
+        {
+            withOnlyLimits = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)>();
+            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withSetPoints = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)>();
+            SelectControllerFunctionData(availableDatas, features, withOnlyLimits, withSetPoints);
+            ControllerFunctionData? chosenControllerFunction = null;
+            if (withSetPoints.Count > 0)
+            {
+                List<Vocabulary.Schemas.Nouns.Enum> fs = withSetPoints[0].features;
+                if (fs != null)
+                {
+                    List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withSameFeatures = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)>();
+                    foreach (var wol in withSetPoints)
+                    {
+                        if (wol.features != null)
+                        {
+                            bool eq = wol.features.Count == fs.Count;
+                            if (eq)
+                            {
+                                foreach (var f in fs)
+                                {
+                                    eq &= wol.features.Contains(f);
+                                    if (!eq)
+                                    {
+                                        break;
+                                    }
+                                }
+                            }
+                            if (eq)
+                            {
+                                withSameFeatures.Add(wol);
+                            }
+                        }
+                    }
+                    if (withSameFeatures.Count > 0)
+                    {
+                        withSameFeatures = withSameFeatures.OrderByDescending(wol => wol.Item2).ToList();
+                        chosenControllerFunction = withSameFeatures[0].data;
+                    }
+                }
+                if (chosenControllerFunction == null)
+                {
+                    chosenControllerFunction = withSetPoints[0].data;
+                }
+            }
+            if (withOnlyLimits.Count > 0 && chosenControllerFunction == null)
+            {
+                chosenControllerFunction = withOnlyLimits[0].data;
+            }
+            return chosenControllerFunction;
+        }
+        private bool TryIntersectEnvelopes(List<SafeOperatingEnvelopeData> sources, out object? parameter)
+        {
+            parameter = null;
+            if (sources == null || sources.Count == 0)
+            {
+                return false;
+            }
+            if (sources.Any(s => s.Parameters == null || s.ParametersDestinationQueryResult == null))
+            {
+                return false;
+            }
+            Type paramType = sources[0].Parameters!.GetType();
+            if (sources.Any(s => s.Parameters!.GetType() != paramType))
+            {
+                return false;
+            }
+            object? cloned = null;
+            try
+            {
+                string json = JsonConvert.SerializeObject(sources[0].Parameters);
+                cloned = JsonConvert.DeserializeObject(json, paramType);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex.ToString());
+                return false;
+            }
+            if (cloned == null)
+            {
+                return false;
+            }
+            var lookupTableProps = paramType.GetProperties().Where(p => p.GetCustomAttributesData().Any(ca => ca.AttributeType.Name.Contains("SOELookupTableAttribute"))).ToList();
+            foreach (var prop in lookupTableProps)
+            {
+                var attrData = prop.GetCustomAttributesData().First(ca => ca.AttributeType.Name.Contains("SOELookupTableAttribute"));
+                bool isUpperBound = attrData.ConstructorArguments != null && attrData.ConstructorArguments.Count > 0 && attrData.ConstructorArguments[0].Value != null && attrData.ConstructorArguments[0].Value.ToString() != null && attrData.ConstructorArguments[0].Value.ToString()!.Contains("Upper");
+                List<object> tables = new List<object>();
+                foreach (var s in sources)
+                {
+                    var val = prop.GetValue(s.Parameters!);
+                    if (val != null)
+                    {
+                        tables.Add(val);
+                    }
+                }
+                if (tables.Count == 0)
+                {
+                    return false;
+                }
+                var intersected = IntersectLookupTables(tables, isUpperBound);
+                if (intersected == null)
+                {
+                    return false;
+                }
+                prop.SetValue(cloned, intersected);
+            }
+            parameter = cloned;
+            return true;
+        }
+        private object? IntersectLookupTables(List<object> tables, bool isUpperBound)
+        {
+            if (tables == null || tables.Count == 0)
+            {
+                return null;
+            }
+            Type tableType = tables[0].GetType();
+            var axisProps = tableType.GetProperties().Select(p => new { Prop = p, Attr = p.GetCustomAttributesData().FirstOrDefault(ca => ca.AttributeType.Name.Contains("SOELookupTableAxisAttribute")) }).Where(x => x.Attr != null).ToList();
+            axisProps = axisProps.OrderBy(x => x.Attr!.ConstructorArguments != null && x.Attr!.ConstructorArguments.Count > 0 ? Convert.ToInt32(x.Attr!.ConstructorArguments[0].Value) : 0).ToList();
+            var valueProp = tableType.GetProperties().FirstOrDefault(p => p.GetCustomAttributesData().Any(ca => ca.AttributeType.Name.Contains("SOELookupTableValueAttribute")));
+            if (axisProps.Count == 0 || valueProp == null)
+            {
+                return null;
+            }
+            List<double[]> intersectedAxes = new List<double[]>();
+            foreach (var axis in axisProps)
+            {
+                double globalMin = double.NegativeInfinity;
+                double globalMax = double.PositiveInfinity;
+                List<double> collected = new List<double>();
+                foreach (var t in tables)
+                {
+                    var axisVals = axis.Prop.GetValue(t) as System.Array;
+                    if (axisVals != null && axisVals.Length > 0)
+                    {
+                        List<double> vals = new List<double>();
+                        foreach (var v in axisVals)
+                        {
+                            if (v is IConvertible)
+                            {
+                                vals.Add(Convert.ToDouble(v));
+                            }
+                        }
+                        if (vals.Count > 0)
+                        {
+                            vals.Sort();
+                            double min = vals.First();
+                            double max = vals.Last();
+                            globalMin = Math.Max(globalMin, min);
+                            globalMax = Math.Min(globalMax, max);
+                            collected.AddRange(vals.Where(v => v >= globalMin && v <= globalMax));
+                        }
+                    }
+                }
+                var axisValues = collected.Where(v => v >= globalMin && v <= globalMax).Distinct().OrderBy(v => v).ToArray();
+                if (axisValues.Length == 0 || globalMin > globalMax)
+                {
+                    return null;
+                }
+                intersectedAxes.Add(axisValues);
+            }
+            int[] lengths = intersectedAxes.Select(a => a.Length).ToArray();
+            Type? elementType = valueProp.PropertyType.GetElementType();
+            if (elementType == null)
+            {
+                return null;
+            }
+            var newValues = System.Array.CreateInstance(elementType, lengths);
+            MethodInfo? interpolate = tableType.GetMethod("Interpolate");
+            if (interpolate == null)
+            {
+                return null;
+            }
+            bool anyValue = false;
+            void RecurseFill(int dim, int[] indices)
+            {
+                if (dim == intersectedAxes.Count)
+                {
+                    double? combined = null;
+                    foreach (var t in tables)
+                    {
+                        double[] coords = new double[intersectedAxes.Count];
+                        for (int i = 0; i < intersectedAxes.Count; i++)
+                        {
+                            coords[i] = intersectedAxes[i][indices[i]];
+                        }
+                        object? result = interpolate.Invoke(t, coords.Cast<object>().ToArray());
+                        if (result != null)
+                        {
+                            double val = Convert.ToDouble(result);
+                            if (combined == null)
+                            {
+                                combined = val;
+                            }
+                            else
+                            {
+                                combined = isUpperBound ? Math.Min(combined.Value, val) : Math.Max(combined.Value, val);
+                            }
+                        }
+                    }
+                    if (combined != null)
+                    {
+                        anyValue = true;
+                        newValues.SetValue(Convert.ChangeType(combined.Value, elementType), indices);
+                    }
+                    return;
+                }
+                for (int i = 0; i < intersectedAxes[dim].Length; i++)
+                {
+                    indices[dim] = i;
+                    RecurseFill(dim + 1, indices);
+                }
+            }
+            RecurseFill(0, new int[intersectedAxes.Count]);
+            if (!anyValue)
+            {
+                return null;
+            }
+            object? newTable = Activator.CreateInstance(tableType);
+            if (newTable == null)
+            {
+                return null;
+            }
+            for (int i = 0; i < axisProps.Count; i++)
+            {
+                axisProps[i].Prop.SetValue(newTable, intersectedAxes[i]);
+            }
+            valueProp.SetValue(newTable, newValues);
+            return newTable;
+        }
+        private void SendControllerFunctionOutputs(ControllerFunctionData chosenControllerFunction, List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withOnlyLimits, Guid guid)
+        {
+            foreach (var wol in withOnlyLimits)
+            {
+                if (wol.data != null)
+                {
+                    MergeLimits(chosenControllerFunction, wol.data);
+                }
+            }
+            ProcessRateOfChange(chosenControllerFunction, guid);
+            foreach (var c in chosenControllerFunction.ControllerDatas)
+            {
+                if (c != null)
+                {
+                    if (c.ParametersDestinationQueryResult != null && c.Parameters != null)
+                    {
+                        SendValue(c.ParametersDestinationQueryResult, c.Parameters);
+                    }
+                    if (c.SetPointDestinationQueryResult != null && c.SetPointRecommendation != null)
+                    {
+                        SendValue(c.SetPointDestinationQueryResult, c.SetPointRecommendation);
+                    }
+                    if (c.ControllerLimitDatas != null)
+                    {
+                        foreach (var l in c.ControllerLimitDatas)
+                        {
+                            if (l != null && l.LimitDestinationQueryResult != null && l.LimitRecommendation != null)
+                            {
+                                SendValue(l.LimitDestinationQueryResult, l.LimitRecommendation);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        private void AddEmpty(Dictionary<string, FaultDetectionIsolationAndRecoveryData> dict, string advisorName, FaultDetectionIsolationAndRecoveryFunctionData sample)
+        {
+            if (dict != null && !string.IsNullOrEmpty(advisorName) && sample != null)
+            {
+                FaultDetectionIsolationAndRecoveryData empty = new FaultDetectionIsolationAndRecoveryData();
+                dict.Add(advisorName, empty);
+                empty.AdvisorName = advisorName;
+                if (empty.Features == null)
+                {
+                    empty.Features = new List<Vocabulary.Schemas.Nouns.Enum>();
+                }
+            }
+        }
+        private void AddEmpty(Dictionary<string, SafeOperatingEnvelopeData> dict, string advisorName, SafeOperatingEnvelopeFunctionData sample)
+        {
+            if (dict != null && !string.IsNullOrEmpty(advisorName) && sample != null)
+            {
+                SafeOperatingEnvelopeData empty = new SafeOperatingEnvelopeData();
+                dict.Add(advisorName, empty);
+                empty.AdvisorName = advisorName;
+                if (empty.Features == null)
+                {
+                    empty.Features = new List<Vocabulary.Schemas.Nouns.Enum>();
+                }
+            }
+        }
         private void AddEmpty(Dictionary<string, ProcedureData> dict, string advisorName, ProcedureFunctionData sample)
         {
             if (dict != null && !string.IsNullOrEmpty(advisorName) && sample != null)
@@ -1337,14 +1816,14 @@ namespace DWIS.AdviceComposer.Service
             }
         }
 
-        private object? SearchValue(Dictionary<Guid, LiveValue> liveValues, NodeIdentifier ID)
+        private object? SearchValue(Dictionary<Guid, LiveValue> liveValues, NodeIdentifier ID, TimeSpan obsolescence)
         {
             object? val = null;
             if (liveValues != null && ID != null && !string.IsNullOrEmpty(ID.ID) && !string.IsNullOrEmpty(ID.NameSpace))
             {
                 foreach (var kvp in liveValues)
                 {
-                    if (kvp.Value != null && ID.ID.Equals(kvp.Value.id) && ID.NameSpace.Equals(kvp.Value.ns))
+                    if (kvp.Value != null && ID.ID.Equals(kvp.Value.id) && ID.NameSpace.Equals(kvp.Value.ns) && IsFresh(kvp.Value.Timestamp, obsolescence))
                     {
                         val = kvp.Value.val;
                         break;
@@ -1353,7 +1832,49 @@ namespace DWIS.AdviceComposer.Service
             }
             return val;
         }
+        private bool TryGetFirstFreshValue(Dictionary<Guid, LiveValue> liveValues, TimeSpan obsolescence, out LiveValue? liveValue)
+        {
+            liveValue = null;
+            if (liveValues != null)
+            {
+                foreach (var kvp in liveValues)
+                {
+                    if (kvp.Value != null && IsFresh(kvp.Value.Timestamp, obsolescence))
+                    {
+                        liveValue = kvp.Value;
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        private bool IsFresh(DateTime timestamp, TimeSpan obsolescence)
+        {
+            if (obsolescence == TimeSpan.Zero)
+            {
+                return true;
+            }
+            if (timestamp == DateTime.MinValue)
+            {
+                return false;
+            }
+            return (DateTime.UtcNow - timestamp) <= obsolescence;
+        }
         private void AddFeature(ProcedureData? cf, Vocabulary.Schemas.Nouns.Enum f)
+        {
+            if (cf != null && cf.Features != null && !cf.Features.Contains(f))
+            {
+                cf.Features.Add(f);
+            }
+        }
+        private void AddFeature(FaultDetectionIsolationAndRecoveryData? cf, Vocabulary.Schemas.Nouns.Enum f)
+        {
+            if (cf != null && cf.Features != null && !cf.Features.Contains(f))
+            {
+                cf.Features.Add(f);
+            }
+        }
+        private void AddFeature(SafeOperatingEnvelopeData? cf, Vocabulary.Schemas.Nouns.Enum f)
         {
             if (cf != null && cf.Features != null && !cf.Features.Contains(f))
             {
@@ -1430,7 +1951,139 @@ namespace DWIS.AdviceComposer.Service
                         AddFeature(cf, f);
                         if (cf != null)
                         {
-                            object? val = SearchValue(parametersSource.LiveValues, res[0]);
+                            object? val = SearchValue(parametersSource.LiveValues, res[0], ProcedureObsolescence);
+                            if (val != null)
+                            {
+                                cf.Parameters = val;
+                                cf.ParametersDestinationQueryResult = parametersDestination;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        private void SelectSafeOperatingEnvelopeFunctionData(Dictionary<string, SafeOperatingEnvelopeData> dict, List<Vocabulary.Schemas.Nouns.Enum> features, List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, SafeOperatingEnvelopeData data)>? possibilities)
+        {
+            if (dict != null && features != null && possibilities != null)
+            {
+                List<(List<Vocabulary.Schemas.Nouns.Enum> features, SafeOperatingEnvelopeData data)> results = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, SafeOperatingEnvelopeData data)>();
+                foreach (var kvp in dict)
+                {
+                    if (kvp.Value != null && kvp.Value.Features != null)
+                    {
+                        SafeOperatingEnvelopeData soeData = kvp.Value;
+                        List<Vocabulary.Schemas.Nouns.Enum> intersect = kvp.Value.Features.Intersect(features).ToList();
+                        if (features.Count == 0 || (intersect != null && intersect.Count > 0))
+                        {
+                            results.Add((intersect, soeData));
+                        }
+                    }
+                }
+                if (results.Count > 0)
+                {
+                    foreach (var res in results)
+                    {
+                        possibilities.Add(new(res.features, res.features.Count, res.data));
+                        possibilities = possibilities.OrderByDescending(x => x.features.Count).ToList();
+                    }
+                }
+            }
+        }
+        private void ManageParameters(SafeOperatingEnvelopeFunctionData soeFunctionData, Dictionary<string, SafeOperatingEnvelopeData> availableDatas)
+        {
+            Entry? parametersSource = GetEntry(soeFunctionData.ParametersID);
+            QueryResult? parametersDestination = GetQueryResult(soeFunctionData.ParametersDestinationID);
+            if (parametersSource != null &&
+                parametersSource.Results != null &&
+                parametersSource.LiveValues != null &&
+                parametersDestination != null)
+            {
+                foreach (var res in parametersSource.Results)
+                {
+                    if (res != null && res.Count >= 3 &&
+                        res[0] != null &&
+                        res[1] != null &&
+                        res[2] != null &&
+                        !string.IsNullOrEmpty(res[0].ID) &&
+                        !string.IsNullOrEmpty(res[1].ID) &&
+                        !string.IsNullOrEmpty(res[2].ID) &&
+                        Enum.TryParse(res[2].ID, out Vocabulary.Schemas.Nouns.Enum f))
+                    {
+                        if (!availableDatas.ContainsKey(res[1].ID))
+                        {
+                            AddEmpty(availableDatas, res[1].ID, soeFunctionData);
+                        }
+                        var cf = availableDatas[res[1].ID];
+                        AddFeature(cf, f);
+                        if (cf != null)
+                        {
+                            object? val = SearchValue(parametersSource.LiveValues, res[0], ControllerObsolescence);
+                            if (val != null)
+                            {
+                                cf.Parameters = val;
+                                cf.ParametersDestinationQueryResult = parametersDestination;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        private void SelectFaultDetectionIsolationAndRecoveryFunctionData(Dictionary<string, FaultDetectionIsolationAndRecoveryData> dict, List<Vocabulary.Schemas.Nouns.Enum> features, List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, FaultDetectionIsolationAndRecoveryData data)>? possibilities)
+        {
+            if (dict != null && features != null && possibilities != null)
+            {
+                List<(List<Vocabulary.Schemas.Nouns.Enum> features, FaultDetectionIsolationAndRecoveryData data)> results = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, FaultDetectionIsolationAndRecoveryData data)>();
+                foreach (var kvp in dict)
+                {
+                    if (kvp.Value != null && kvp.Value.Features != null)
+                    {
+                        FaultDetectionIsolationAndRecoveryData fdirData = kvp.Value;
+                        List<Vocabulary.Schemas.Nouns.Enum> intersect = kvp.Value.Features.Intersect(features).ToList();
+                        if (features.Count == 0 || (intersect != null && intersect.Count > 0))
+                        {
+                            results.Add((intersect, fdirData));
+                        }
+                    }
+                }
+                if (results.Count > 0)
+                {
+                    foreach (var res in results)
+                    {
+                        possibilities.Add(new(res.features, 0, res.data));
+                        possibilities = possibilities.OrderByDescending(x => x.features.Count).ToList();
+                    }
+                }
+            }
+        }
+        private void ManageParameters(FaultDetectionIsolationAndRecoveryFunctionData functionData, Dictionary<string, FaultDetectionIsolationAndRecoveryData> availableDatas)
+        {
+            Entry? parametersSource = GetEntry(functionData.ParametersID);
+            QueryResult? parametersDestination = GetQueryResult(functionData.ParametersDestinationID);
+            if (parametersSource != null &&
+                parametersSource.Results != null &&
+                parametersSource.LiveValues != null &&
+                parametersDestination != null)
+            {
+                foreach (var res in parametersSource.Results)
+                {
+                    if (res != null && res.Count >= 3 &&
+                        res[0] != null &&
+                        res[1] != null &&
+                        res[2] != null &&
+                        !string.IsNullOrEmpty(res[0].ID) &&
+                        !string.IsNullOrEmpty(res[1].ID) &&
+                        !string.IsNullOrEmpty(res[2].ID) &&
+                        Enum.TryParse(res[2].ID, out Vocabulary.Schemas.Nouns.Enum f))
+                    {
+                        if (!availableDatas.ContainsKey(res[1].ID))
+                        {
+                            AddEmpty(availableDatas, res[1].ID, functionData);
+                        }
+                        var cf = availableDatas[res[1].ID];
+                        AddFeature(cf, f);
+                        if (cf != null)
+                        {
+                            object? val = SearchValue(parametersSource.LiveValues, res[0], FDIRObolescence);
                             if (val != null)
                             {
                                 cf.Parameters = val;
@@ -1469,7 +2122,7 @@ namespace DWIS.AdviceComposer.Service
                         AddFeature(cf, f);
                         if (cf != null)
                         {
-                            object? val = SearchValue(parametersSource.LiveValues, res[0]);
+                            object? val = SearchValue(parametersSource.LiveValues, res[0], SOEObsolescence);
                             if (val != null)
                             {
                                 cf.Parameters = val;
@@ -1508,7 +2161,7 @@ namespace DWIS.AdviceComposer.Service
                         AddFeature(cf, f);
                         if (cf != null && cf.ControllerDatas != null && cf.ControllerDatas.Count > i && cf.ControllerDatas[i] != null)
                         {
-                            object? val = SearchValue(parametersSource.LiveValues, res[0]);
+                            object? val = SearchValue(parametersSource.LiveValues, res[0], ControllerObsolescence);
                             if (val != null)
                             {
                                 cf.ControllerDatas[i].Parameters = val;
@@ -1530,19 +2183,17 @@ namespace DWIS.AdviceComposer.Service
                 setPointSource.LiveValues != null &&
                 measuredValue != null &&
                 measuredValue.LiveValues != null &&
-                measuredValue.LiveValues.Values != null &&
-                measuredValue.LiveValues.Values.Any() &&
-                measuredValue.LiveValues.Values.First() != null &&
-                measuredValue.LiveValues.Values.First().val != null &&
-                measuredValue.LiveValues.Values.First().val is double mVal &&
                 maxRateOfChange != null &&
                 maxRateOfChange.LiveValues != null &&
-                maxRateOfChange.LiveValues.Values != null &&
-                maxRateOfChange.LiveValues.Values.Any() &&
-                maxRateOfChange.LiveValues.Values.First() != null &&
-                maxRateOfChange.LiveValues.Values.First().val != null &&
-                maxRateOfChange.LiveValues.Values.First().val is double mROC &&
-                setPointDestination != null)
+                setPointDestination != null &&
+                TryGetFirstFreshValue(measuredValue.LiveValues, ControllerObsolescence, out LiveValue? mv) &&
+                mv != null &&
+                mv.val != null &&
+                mv.val is double mVal &&
+                TryGetFirstFreshValue(maxRateOfChange.LiveValues, ControllerObsolescence, out LiveValue? roc) &&
+                roc != null &&
+                roc.val != null &&
+                roc.val is double mROC)
             {
                 foreach (var res in setPointSource.Results)
                 {
@@ -1563,7 +2214,7 @@ namespace DWIS.AdviceComposer.Service
                         AddFeature(cf, f);
                         if (cf != null && cf.ControllerDatas != null && cf.ControllerDatas.Count > i && cf.ControllerDatas[i] != null)
                         {
-                            object? val = SearchValue(setPointSource.LiveValues, res[0]);
+                            object? val = SearchValue(setPointSource.LiveValues, res[0], ControllerObsolescence);
                             if (val != null && val is double dval)
                             {
                                 cf.ControllerDatas[i].SetPointRecommendation = dval;
@@ -1594,11 +2245,10 @@ namespace DWIS.AdviceComposer.Service
                 maxLimitSource.LiveValues != null &&
                 maxRateOfChange != null &&
                 maxRateOfChange.LiveValues != null &&
-                maxRateOfChange.LiveValues.Values != null &&
-                maxRateOfChange.LiveValues.Values.Any() &&
-                maxRateOfChange.LiveValues.Values.First() != null &&
-                maxRateOfChange.LiveValues.Values.First().val != null &&
-                maxRateOfChange.LiveValues.Values.First().val is double mROC &&
+                TryGetFirstFreshValue(maxRateOfChange.LiveValues, ControllerObsolescence, out LiveValue? roc) &&
+                roc != null &&
+                roc.val != null &&
+                roc.val is double mROC &&
                 maxLimitDestination != null)
             {
                 foreach (var res in maxLimitSource.Results)
@@ -1627,7 +2277,7 @@ namespace DWIS.AdviceComposer.Service
                             cf.ControllerDatas[i].ControllerLimitDatas.Count > j &&
                             cf.ControllerDatas[i].ControllerLimitDatas[j] != null)
                         {
-                            object? val = SearchValue(maxLimitSource.LiveValues, res[0]);
+                            object? val = SearchValue(maxLimitSource.LiveValues, res[0], ControllerObsolescence);
                             if (val != null && val is double dval)
                             {
                                 cf.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation = dval;

@@ -21,6 +21,7 @@ namespace DWIS.AdviceComposer.Service
         public string ns { get; set; } = string.Empty;
         public string id { get; set; } = string.Empty;
         public object? val { get; set; } = null;
+        public DateTime Timestamp { get; set; } = DateTime.MinValue;
 
         public LiveValue(): base() {}
 
@@ -29,6 +30,7 @@ namespace DWIS.AdviceComposer.Service
             this.ns = ns;
             this.id = id;
             this.val = val;
+            this.Timestamp = DateTime.MinValue;
         }
     }
 }

@@ -7,8 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="DWIS.RigOS.Capabilities.Controller.Model" Version="1.0.4-build.34" />
-    <PackageReference Include="DWIS.RigOS.Capabilities.Procedure.Model" Version="1.0.1-build.44" />
+    <PackageReference Include="DWIS.RigOS.Capabilities.Controller.Model" Version="1.0.4-build.40" />
+    <PackageReference Include="DWIS.RigOS.Capabilities.FDIR.Model" Version="0.0.1-build.79" />
+    <PackageReference Include="DWIS.RigOS.Capabilities.Procedure.Model" Version="1.0.1-build.85" />
+    <PackageReference Include="DWIS.RigOS.Capabilities.SOE.Model" Version="0.0.1-build.63" />
   </ItemGroup>
 
 </Project>
