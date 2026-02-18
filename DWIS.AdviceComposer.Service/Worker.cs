@@ -45,10 +45,10 @@ namespace DWIS.AdviceComposer.Service
             TypeNameHandling = TypeNameHandling.Objects,
             Formatting = Formatting.Indented
         };
-        private TimeSpan ControllerObsolescence => Configuration?.ControllerObsolescence ?? TimeSpan.Zero;
-        private TimeSpan ProcedureObsolescence => Configuration?.ProcedureObsolescence ?? TimeSpan.Zero;
-        private TimeSpan FDIRObolescence => Configuration?.FaultDetectionIsolationAndRecoveryObsolescence ?? TimeSpan.Zero;
-        private TimeSpan SOEObsolescence => Configuration?.SafeOperatingEnvelopeObsolescence ?? TimeSpan.Zero;
+        private TimeSpan ControllerObsolescence => TimeSpan.MaxValue;// Configuration?.ControllerObsolescence ?? TimeSpan.Zero;
+        private TimeSpan ProcedureObsolescence => TimeSpan.MaxValue;//Configuration?.ProcedureObsolescence ?? TimeSpan.Zero;
+        private TimeSpan FDIRObolescence => TimeSpan.MaxValue;//Configuration?.FaultDetectionIsolationAndRecoveryObsolescence ?? TimeSpan.Zero;
+        private TimeSpan SOEObsolescence => TimeSpan.MaxValue;//Configuration?.SafeOperatingEnvelopeObsolescence ?? TimeSpan.Zero;
 
         private Guid _ADCSStandardInterfaceSubscription = Guid.NewGuid();
         private static string _prefix = "DWIS:AdviceComposer:";
@@ -512,9 +512,15 @@ namespace DWIS.AdviceComposer.Service
                                             TypeNameHandling = TypeNameHandling.Objects,
                                             Formatting = Formatting.Indented
                                         };
-                                        ActivableFunction? activableFunction = JsonConvert.DeserializeObject<ActivableFunction>(json, settings);
+
+                                        ActivableFunction? activableFunction = JsonConvert.DeserializeObject<ActivableFunction>(json, settings);                                                                            
+                                      
+
                                         if (activableFunction != null && !string.IsNullOrEmpty(activableFunction.Name))
                                         {
+                                            activableFunction.FillInSparqlQueriesAndManifests(); 
+                                            activableFunction.FillInAlternateSparqlQueries();
+                                            
                                             if (activableFunction is ControllerFunction controllerFunction)
                                             {
                                                 ManageControllerFunction(controllerFunction, activableFunction);
@@ -1246,6 +1252,11 @@ namespace DWIS.AdviceComposer.Service
                 {
                     if (controller != null)
                     {
+                        if (controller.Parameters != null && string.IsNullOrEmpty(controller.Parameters.SparQLQuery))
+                        {
+                            
+                        }
+
                         ControlData controllerData = new ControlData();
                         controlFunctionData.controllerDatas.Add(controllerData);
                         RegisterControllerParameters(controller, controllerData);
