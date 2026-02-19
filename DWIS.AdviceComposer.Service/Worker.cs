@@ -244,7 +244,7 @@ namespace DWIS.AdviceComposer.Service
                             entry.LiveValues[id].val = dataChange.Value;
                             entry.LiveValues[id].Timestamp = DateTime.UtcNow;
                         }
-                    }
+                    }  
                     else 
                     {
                     }
