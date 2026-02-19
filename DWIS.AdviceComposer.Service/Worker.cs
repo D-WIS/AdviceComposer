@@ -223,26 +223,26 @@ namespace DWIS.AdviceComposer.Service
                                 LiveValue liveValue = new(node.NameSpace, node.ID, null);
                                 entry.LiveValues.Add(guid, liveValue);
                                 Entry userDataEntry = new Entry();
-                                _DWISClient.Subscribe(entry, CallbackOPCUA, new (string, string, object)[] { new(liveValue.ns, liveValue.id, guid) });
+                                _DWISClient.Subscribe(entry,(sd, dc) => CallbackOPCUA(sd, dc, guid), new (string, string, object)[] { new(liveValue.ns, liveValue.id, guid) });
                             }
                         }
                     }
                 }
             }
         }
-        private void CallbackOPCUA(object subscriptionData, UADataChange[] changes)
+        private void CallbackOPCUA(object subscriptionData, UADataChange[] changes, Guid id)
         {
             if (subscriptionData != null && subscriptionData is Entry entry && entry.LiveValues != null && changes != null && changes.Length > 0)
             {
                 UADataChange dataChange = changes[0];
                 if (dataChange != null && entry.LiveValues.Count > 0)
                 {
-                    if (dataChange.UserData != null && dataChange.UserData is Guid guid)
+                    if (dataChange.UserData != null)// && dataChange.UserData is Guid guid)
                     {
-                        if (entry.LiveValues.ContainsKey(guid))
+                        if (entry.LiveValues.ContainsKey(id))
                         {
-                            entry.LiveValues[guid].val = dataChange.Value;
-                            entry.LiveValues[guid].Timestamp = DateTime.UtcNow;
+                            entry.LiveValues[id].val = dataChange.Value;
+                            entry.LiveValues[id].Timestamp = DateTime.UtcNow;
                         }
                     }
                     else 
