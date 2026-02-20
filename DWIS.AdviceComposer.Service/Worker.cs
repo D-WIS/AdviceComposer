@@ -1176,15 +1176,18 @@ namespace DWIS.AdviceComposer.Service
                                 }
                                 else
                                 {
-                                    if (src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation != null)
-                                    if (src.ControllerDatas[i].ControllerLimitDatas[j].IsMin) 
+                                    if (src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation != null && !Numeric.EQ(src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation, 0))
                                     {
-                                        dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation = Math.Max(dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation!.Value, src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation!.Value);
-                                    }
-                                    else
-                                    {
-                                        dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation = Math.Min(dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation!.Value, src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation!.Value);
-                                    }
+                                        
+                                        if (src.ControllerDatas[i].ControllerLimitDatas[j].IsMin)
+                                        {
+                                            dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation = Math.Max(dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation!.Value, src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation!.Value);
+                                        }
+                                        else
+                                        {
+                                            dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation = Math.Min(dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation!.Value, src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation!.Value);
+                                        }
+                                    } 
                                 }
                             }
                         }
