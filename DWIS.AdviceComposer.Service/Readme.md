@@ -93,7 +93,7 @@ docker build -f .\DWIS.AdviceComposer.Service\Dockerfile -t dwisadvicecomposerse
 
 Run container on Windows:
 ```powershell
-docker run -dit --name DWISComposer -v C:\Volumes\DWISAdviceComposerService:/home dwisadvicecomposerservice:stable
+docker run -dit --name DWISComposer -v C:\Volumes\DWISAdviceComposerService:/home digiwells/dwisadvicecomposerservice:stable
 ```
 
 `C:\Volumes\DWISAdviceComposerService` holds the external `config.json` used by the service.
