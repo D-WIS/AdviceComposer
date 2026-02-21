@@ -6,19 +6,11 @@ using DWIS.RigOS.Common.Model;
 using DWIS.RigOS.Capabilities.Controller.Model;
 using Newtonsoft.Json;
 using DWIS.Scheduler.Model;
-using System.Diagnostics;
-using Org.BouncyCastle.Bcpg.Sig;
-using System.Runtime.Intrinsics.Arm;
 using OSDC.DotnetLibraries.General.Common;
-using System;
 using System.Reflection;
-using OSDC.DotnetLibraries.Drilling.DrillingProperties;
-using Opc.Ua;
 using DWIS.RigOS.Capabilities.Procedure.Model;
 using DWIS.RigOS.Capabilities.FDIR.Model;
 using DWIS.RigOS.Capabilities.SOE.Model;
-using DWIS.RigOS.Capabilities.SOE.Model;
-using DWIS.RigOS.Capabilities.FDIR.Model;
 
 namespace DWIS.AdviceComposer.Service
 {
@@ -224,6 +216,7 @@ namespace DWIS.AdviceComposer.Service
                                 entry.LiveValues.Add(guid, liveValue);
                                 Entry userDataEntry = new Entry();
                                 _DWISClient.Subscribe(entry,(sd, dc) => CallbackOPCUA(sd, dc, guid), new (string, string, object)[] { new(liveValue.ns, liveValue.id, guid) });
+                                Thread.Sleep(100); // to avoid too many subscription at the same time, which can cause the OPC-UA server to fail. This is a workaround, a more robust solution should be implemented in case of a large number of subscriptions.
                             }
                         }
                     }
@@ -258,7 +251,7 @@ namespace DWIS.AdviceComposer.Service
 
             if (_DWISClient != null && _DWISClient.Connected)
             {
-                AdviceComposer.Model.ADCSStandardInterfaceHelper standardInterfaceHelper = new AdviceComposer.Model.ADCSStandardInterfaceHelper();
+                Model.ADCSStandardInterfaceHelper standardInterfaceHelper = new Model.ADCSStandardInterfaceHelper();
                 if (_DWISClient != null && _DWISClient.Connected && standardInterfaceHelper != null && !string.IsNullOrEmpty(standardInterfaceHelper.SparQLQuery))
                 {
                     string sparql = standardInterfaceHelper.SparQLQuery;
@@ -819,9 +812,9 @@ namespace DWIS.AdviceComposer.Service
                         }
                         if (entryContext != null &&
                             entryContext.LiveValues != null &&
-                            entryContext.LiveValues.Count > 0 &&
-                            TryGetContextFeatures(entryContext, ProcedureObsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features))
+                            entryContext.LiveValues.Count > 0)
                         {
+                            TryGetContextFeatures(entryContext, ProcedureObsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features);
                             Dictionary<string, ProcedureData> availableDatas = new Dictionary<string, ProcedureData>();
                             ManageParameters(kvp.Value.src, availableDatas);
                             ProcedureData? chosenProcedureFunction = ChooseProcedureFunction(availableDatas, features);
@@ -850,9 +843,9 @@ namespace DWIS.AdviceComposer.Service
                         }
                         if (entryContext != null &&
                             entryContext.LiveValues != null &&
-                            entryContext.LiveValues.Count > 0 &&
-                            TryGetContextFeatures(entryContext, FDIRObolescence, out List<Vocabulary.Schemas.Nouns.Enum> features))
+                            entryContext.LiveValues.Count > 0)
                         {
+                            TryGetContextFeatures(entryContext, FDIRObolescence, out List<Vocabulary.Schemas.Nouns.Enum> features);
                             Dictionary<string, FaultDetectionIsolationAndRecoveryData> availableDatas = new Dictionary<string, FaultDetectionIsolationAndRecoveryData>();
                             ManageParameters(kvp.Value.src, availableDatas);
                             FaultDetectionIsolationAndRecoveryData? chosen = ChooseFaultDetectionIsolationAndRecoveryFunction(availableDatas, features);
@@ -881,9 +874,9 @@ namespace DWIS.AdviceComposer.Service
                         }
                         if (entryContext != null &&
                             entryContext.LiveValues != null &&
-                            entryContext.LiveValues.Count > 0 &&
-                            TryGetContextFeatures(entryContext, SOEObsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features))
+                            entryContext.LiveValues.Count > 0)
                         {
+                            TryGetContextFeatures(entryContext, SOEObsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features);
                             Dictionary<string, SafeOperatingEnvelopeData> availableDatas = new Dictionary<string, SafeOperatingEnvelopeData>();
                             ManageParameters(kvp.Value.src, availableDatas);
                             List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, SafeOperatingEnvelopeData data)> candidates = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, SafeOperatingEnvelopeData data)>();
@@ -914,9 +907,9 @@ namespace DWIS.AdviceComposer.Service
                         }
                         if (entryContext != null &&
                             entryContext.LiveValues != null &&
-                            entryContext.LiveValues.Count > 0 &&
-                            TryGetContextFeatures(entryContext, ControllerObsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features))
+                            entryContext.LiveValues.Count > 0)
                         {
+                            TryGetContextFeatures(entryContext, ControllerObsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features);
                             Dictionary<string, ControllerFunctionData> availableDatas = new Dictionary<string, ControllerFunctionData>();
                             ManageParameters(kvp.Value.src, availableDatas);
                             FindAvailableDatas(availableDatas, kvp.Value.src.controllerDatas, kvp.Value.src);
@@ -1347,7 +1340,7 @@ namespace DWIS.AdviceComposer.Service
                 ManageLimits(controllerWithLimits.ControllerLimits, controllerData);
             }
         }
-        private bool TryGetContextFeatures(Entry entryContext, TimeSpan obsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features)
+        private void TryGetContextFeatures(Entry entryContext, TimeSpan obsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features)
         {
             features = new List<Vocabulary.Schemas.Nouns.Enum>();
             if (entryContext != null && entryContext.LiveValues != null && entryContext.LiveValues.Count > 0)
@@ -1368,7 +1361,7 @@ namespace DWIS.AdviceComposer.Service
                                         features.Add(feature);
                                     }
                                 }
-                                return true;
+                                break;
                             }
                         }
                         catch (Exception ex)
@@ -1378,7 +1371,6 @@ namespace DWIS.AdviceComposer.Service
                     }
                 }
             }
-            return false;
         }
         private ProcedureData? ChooseProcedureFunction(Dictionary<string, ProcedureData> availableDatas, List<Vocabulary.Schemas.Nouns.Enum> features)
         {
