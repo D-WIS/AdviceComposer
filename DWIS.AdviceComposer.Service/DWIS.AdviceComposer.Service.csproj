@@ -6,6 +6,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>dotnet-DWIS.AdviceComposer.Service-6ee9c22b-66b2-4066-8dec-1a0d539bb321</UserSecretsId>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <Authors>Eric Cayeux</Authors>
+    <Company>NORCE</Company>
+    <PackageReadmeFile>Readme.md</PackageReadmeFile>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,5 +21,16 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DWIS.AdviceComposer.Model\DWIS.AdviceComposer.Model.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="LICENSE">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Update="Readme.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
   </ItemGroup>
 </Project>

@@ -1,55 +1,104 @@
-﻿# ROP Advisor With Cutting Transport Feature
-Output every second:
-- flowrate setpoint
-- rotational speed setpoint
-- ROP Max limit
-- WOB Max limit
-- TOB Max Limit
-- dp max limit
+# DWIS.AdviceComposer.ROPAdvisorWithCuttingsTransportFeature.Test
 
-Each of these values vary through time using a sinusoidal function, which parameters are taken from the configuration file.
+## Overview
+This project is a test advisor worker that publishes synthetic ROP-related recommendations tagged with the `CuttingsTransportFeature` capability.
 
-The semantic of each of these values is declared to support the feature `CuttingsTransportFeature`.
+It is intended to be used with:
+- `DWIS.AdviceComposer.Service` (composition logic)
+- `DWIS.AdviceComposer.SchedulerROPContext.Test` (context switching)
 
-## Getting started (internal)
-If you have created the docker image yourself, here is the procedured.
+## What It Publishes
+At each loop tick (`LoopDuration`), the worker writes sinusoidal test signals to Blackboard outputs resolved from semantic queries/manifests:
+- `BOSFlowrateAdvisedTarget` (set-point)
+- `BOSRotationalSpeedAdvisedTarget` (set-point)
+- `ROPAdvisedMaximum` (max limit)
+- `WOBAdvisedMaximum` (max limit)
+- `BitTorqueAdvisedMaximum` (max limit)
+- `DifferentialPressureAdvisedMaximum` (max limit)
 
-The `docker run` command for windows is:
-```
-docker run --name ropadvisorcuttings -v C:\Volumes\DWISAdvisorROPCuttings:/home dwisadvicecomposerropadvisorwithcuttingstransportfeaturetest:latest
-```
-where `C:\Volumes\DWISAdvisorROPCuttings` is any folder where you would like to access the config.json file that is used to configure
-the application.
+Signal values are generated from:
+- `value = average + amplitude * sin(2*pi*t/period)`
 
-and the `docker run` command for linux is:
-```
-docker run --name ropadvisorcuttings -v /home/Volumes/DWISAdvisorROPCuttings:/home dwisadvicecomposerropadvisorwithcuttingstransportfeaturetest:latest
-```
-where `/home/Volumes/DWISAdvisorROPCuttings` is any directory where you would like to access the config.json file that is used to
-configure the application.
+## Advisor Identity Used in Manifest Injection
+When destination nodes are injected/resolved, advisor identity is rewritten to:
+- Company: `Sekal`
+- Advisor: `DrillTronics`
+- Prefix: `DWIS:Advisor:Sekal:ROPManagement:`
+- Manifest name: `ROPAdvisorWithCuttingsTransportFeature`
+
+## Runtime Behavior
+1. Connects to OPC UA Blackboard (`OPCUAURL`).
+2. Subscribes to ADCS standard auto-driller function descriptions.
+3. Resolves or injects destination variables for all published outputs.
+4. Periodically publishes the synthetic recommendations.
 
 ## Configuration
-A configuration file is available in the directory/folder that is connected to the internal `/home` directory. The name of the configuration
-file is `config.json` and is in Json format.
+Configuration file path:
+- local: `../home/config.json`
+- container: `/home/config.json`
 
-The configuration file has the following properties:
-- `LoopDuration` (a TimeSpan, default 1s): this property defines the loop duration of the service, i.e., the time interval used to check if new signals are available.
-- `OPCUAURL` (a string, default "opc.tcp://localhost:48030"): this property defines the `URL` used to connect to the `DWIS Blackboard`
-- `FlowrateAmplitude` the flowrate sinusoid amplitude ($m^3/s$)
-- `FlowrateAverage` the flowrate average value ($m^3/s$)
-- `FlowratePeriod` the flowrate sinusoid period (s)
-- `RotationalSpeedAmplitude` the rotational speed sinusoid amplitude (Hz)
-- `RotationalSpeedAverage` the rotational average value (Hz)
-- `RotationalSpeedPeriod` the rotational sinudois period (s)
-- `ROPAmplitude` the rate of penetration sinusoid amplitude (m/s)
-- `ROPAverage` the rate of penetration average value (m/s)
-- `ROPPeriod` the rate of penetration sinusoid amplitude (s)
-- `WOBAmplitude` the weight on bit sinusoid amplitude (kg)
-- `WOBAverage` the weight on bit average value (kg)
-- `WOBPeriod` the weight on bit sinusoid period (s)
-- `TOBAmplitude` the torque on bit sinusoid amplitude (N.m)
-- `TOBAverage` the torque on bit average value (N.m)
-- `TOBPeriod` the torque on bit sinusoid period (s)
-- `DPAmplitude` the PDM differential pressure sinusoid amplitude (Pa)
-- `DPAverage` the PDM differential pressure average value (Pa)
-- `DPPeriod` the PDM differential pressure sinusoid period (s)
+If missing, a default file is created.
+
+Example config:
+```json
+{
+  "LoopDuration": "00:00:01",
+  "OPCUAURL": "opc.tcp://localhost:48030",
+  "FlowrateAmplitude": 0.008333333333333333,
+  "FlowrateAverage": 0.03333333333333333,
+  "FlowratePeriod": 60.0,
+  "RotationalSpeedAmplitude": 0.5,
+  "RotationalSpeedAverage": 2.0,
+  "RotationalSpeedPeriod": 100.0,
+  "ROPAmplitude": 0.002777777777777778,
+  "ROPAverage": 0.008333333333333333,
+  "ROPPeriod": 45.0,
+  "WOBAmplitude": 5000.0,
+  "WOBAverage": 30000.0,
+  "WOBPeriod": 66.0,
+  "TOBAmplitude": 1000.0,
+  "TOBAverage": 20000.0,
+  "TOBPeriod": 22.0,
+  "DPAmplitude": 500000.0,
+  "DPAverage": 2000000.0,
+  "DPPeriod": 52.0
+}
+```
+
+Parameter meaning:
+- `LoopDuration`: publish interval.
+- `OPCUAURL`: OPC UA server endpoint.
+- For each signal: `Amplitude`, `Average`, `Period` define the sinusoid.
+
+## Run Locally
+From repository root:
+```powershell
+dotnet restore .\DWIS.AdviceComposer.sln
+dotnet run --project .\DWIS.AdviceComposer.ROPAdvisorWithCuttingsTransportFeature.Test\DWIS.AdviceComposer.ROPAdvisorWithCuttingsTransportFeature.Test.csproj
+```
+
+## Build and Run with Docker
+Build image:
+```powershell
+docker build -f .\DWIS.AdviceComposer.ROPAdvisorWithCuttingsTransportFeature.Test\Dockerfile -t dwisadvicecomposerropadvisorwithcuttingstransportfeaturetest:latest .
+```
+
+Run on Windows:
+```powershell
+docker run --name ropadvisorcuttings -v C:\Volumes\DWISAdvisorROPCuttings:/home dwisadvicecomposerropadvisorwithcuttingstransportfeaturetest:latest
+```
+
+Run on Linux:
+```bash
+docker run --name ropadvisorcuttings -v /home/Volumes/DWISAdvisorROPCuttings:/home dwisadvicecomposerropadvisorwithcuttingstransportfeaturetest:latest
+```
+
+## Validation Checklist
+- Logs show periodic writes: flowrate, rotational speed, ROP, WOB, TOB, dP.
+- Blackboard nodes for the six outputs exist (injected or pre-existing).
+- When used with AdviceComposer + context scheduler, this advisor should be selected when `CuttingsTransportFeature` is preferred.
+
+## Troubleshooting
+- No values written: verify `OPCUAURL` and certificate/trust configuration in `config/Quickstarts.ReferenceClient.Config.xml`.
+- Missing output nodes: ensure manifest injection is allowed and not blocked by server policy.
+- Unexpected selection in composition tests: verify scheduler context currently includes `CuttingsTransportFeature`.

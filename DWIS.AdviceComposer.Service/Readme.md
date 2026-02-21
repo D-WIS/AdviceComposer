@@ -1,34 +1,127 @@
-﻿# Advice Composer
+# DWIS.AdviceComposer.Service
 
-## Composition of Controller Parameters
+## Overview
+`DWIS.AdviceComposer.Service` is a .NET Worker Service that connects to a DWIS Blackboard through OPC UA and composes advice outputs from available advisor signals.
 
-## Composition of Standard Procedure Parameters
+It supports four capability families:
+- Controller functions (controller parameters, set-points, limits)
+- Procedure functions
+- Fault Detection, Isolation and Recovery (FDIR) functions
+- Safe Operating Envelope (SOE) functions
 
-## Composition of Safe Operating Envelopes
+The service listens for activable functions, discovers their semantic inputs through SPARQL queries, subscribes to live values, selects/combines the best advice based on context features, and writes composed outputs back to Blackboard variables.
 
-## Composition of Fault Detection, Isolation and Recovert Parameters
+## Main Responsibilities
+- Register to the ADCS standard interface stream (activable functions as JSON payloads).
+- Parse and classify each activable function by type.
+- Register required semantic queries for context and data sources.
+- Ensure destination variables exist in Blackboard (inject manifest when needed).
+- Subscribe to live values for source nodes.
+- Compose outputs using feature-based selection:
+  - Choose best matching Procedure advice.
+  - Choose best matching FDIR advice.
+  - Combine SOE envelopes by lookup-table intersection when possible.
+  - Choose Controller advice, merge limit-only advisors, and apply rate-of-change shaping.
+- Publish composed values back to Blackboard via OPC UA updates.
 
-## Getting started (internal)
-If you have created the docker image yourself, here is the procedured.
+## Runtime Flow
+1. Startup:
+- Reads `../home/config.json` (creates default file when missing).
+- Connects OPC UA client to `Configuration.OPCUAURL`.
+- Registers ADCS standard interface query.
 
-The `docker run` command for windows is:
-```
-docker run -d --name composer -v C:\Volumes\DWISAdviceComposerService:/home dwisadvicecomposerservice:latest
-```
-where `C:\Volumes\DWISAdviceComposerService` is any folder where you would like to access the config.json file that is used to configure
-the application.
+2. Per loop tick (`Configuration.LoopDuration`):
+- `ManageActivableFunctionList()` discovers and registers new activable functions.
+- `ManageControllerFunctionsSetPointsLimitsAndParameters()` composes controller outputs.
+- `ManageProcedureParameters()` composes procedure outputs.
+- `ManageFaultDetectionIsolationAndRecoveryParameters()` composes FDIR outputs.
+- `ManageSafeOperatingEnvelopeParameters()` composes SOE outputs.
 
-and the `docker run` command for linux is:
-```
-docker run -d --name composer -v /home/Volumes/DWISAdviceComposerService:/home dwisadvicecomposerservice:latest
-```
-where `/home/Volumes/DWISAdviceComposerService` is any directory where you would like to access the config.json file that is used to
-configure the application.
+3. Publish:
+- Writes scalar values and JSON-serialized object payloads to destination Blackboard nodes.
+
+## Project Structure
+- `Program.cs`: host bootstrap (`BackgroundService` registration).
+- `Worker.cs`: core orchestration, query registration, composition logic, OPC UA writeback.
+- `Configuration.cs`: runtime configuration model.
+- `Entry.cs`: in-memory query result/live-value store.
+- `ControlData.cs`, `ProcedureData.cs`, `FaultDetectionIsolationAndRecoveryFunctionData.cs`, `SafeOperatingEnvelopeFunctionData.cs`: internal correlation/state models.
+- `config/Quickstarts.ReferenceClient.Config.xml`: OPC UA client configuration.
 
 ## Configuration
-A configuration file is available in the directory/folder that is connected to the internal `/home` directory. The name of the configuration
-file is `config.json` and is in Json format.
+Configuration is loaded from:
+- `../home/config.json` in local run
+- `/home/config.json` in container run (via mounted volume)
 
-The configuration file has the following properties:
-- `LoopDuration` (a TimeSpan, default 1s): this property defines the loop duration of the service, i.e., the time interval used to check if new signals are available.
-- `OPCUAURL` (a string, default "opc.tcp://localhost:48030"): this property defines the `URL` used to connect to the `DWIS Blackboard`
+Schema:
+```json
+{
+  "LoopDuration": "00:00:01",
+  "OPCUAURL": "opc.tcp://localhost:48030",
+  "ControllerObsolescence": "00:00:05",
+  "ProcedureObsolescence": "00:00:05",
+  "FaultDetectionIsolationAndRecoveryObsolescence": "00:00:05",
+  "SafeOperatingEnvelopeObsolescence": "00:00:05"
+}
+```
+
+Notes:
+- `LoopDuration`: periodic processing interval.
+- `OPCUAURL`: DWIS Blackboard OPC UA endpoint.
+- Obsolescence values are present in configuration, but current `Worker` freshness checks effectively use `TimeSpan.MaxValue` constants, so staleness filtering is currently not bounded by those configured values.
+
+## Prerequisites
+- .NET 8 SDK (for local build/run)
+- Reachable DWIS Blackboard OPC UA endpoint
+- Valid OPC UA certificate/trust setup for your environment (see `config/Quickstarts.ReferenceClient.Config.xml`)
+
+## Run Locally
+From repository root:
+```powershell
+dotnet restore .\DWIS.AdviceComposer.sln
+dotnet build .\DWIS.AdviceComposer.sln -c Release
+dotnet run --project .\DWIS.AdviceComposer.Service\DWIS.AdviceComposer.Service.csproj
+```
+
+Ensure `home\config.json` exists at repository root (or let service generate it on first run), then set `OPCUAURL` as needed.
+
+## Build and Run with Docker
+Build image from repository root:
+```powershell
+docker build -f .\DWIS.AdviceComposer.Service\Dockerfile -t dwisadvicecomposerservice:stable .
+```
+
+Run container on Windows:
+```powershell
+docker run -dit --name DWISComposer -v C:\Volumes\DWISAdviceComposerService:/home dwisadvicecomposerservice:stable
+```
+
+`C:\Volumes\DWISAdviceComposerService` holds the external `config.json` used by the service.
+
+## Logging
+- Uses standard `Microsoft.Extensions.Hosting` logging.
+- Default log level is `Information` (`appsettings.json` / `appsettings.Development.json`).
+- Service logs include connection/config startup info and send/update events.
+
+## Composition Rules (Current Behavior)
+- Feature matching: candidates are grouped by advisor and ranked by overlap with context features.
+- Controller selection:
+  - Prefer candidates with set-point recommendations.
+  - If needed, merge limit recommendations from "limit-only" candidates.
+  - Apply max-rate-of-change filtering against the previously sent controller outputs.
+- SOE selection:
+  - Attempts intersection of multiple SOE lookup tables.
+  - For upper bounds, combines by min; for lower bounds, combines by max.
+  - Falls back by reducing candidate set until intersection succeeds.
+
+## Troubleshooting
+- No outputs written:
+  - Verify OPC UA endpoint in `config.json`.
+  - Verify activable function payloads are arriving in ADCS standard interface.
+  - Confirm source query results resolve and subscriptions receive live values.
+- Connection/certificate errors:
+  - Check `config/Quickstarts.ReferenceClient.Config.xml` paths and trust stores.
+  - Validate certificate permissions for container/local runtime user.
+- Wrong/missing advisor selection:
+  - Validate context features and advisor feature tags in Blackboard data.
+  - Confirm source value freshness and datatype compatibility.

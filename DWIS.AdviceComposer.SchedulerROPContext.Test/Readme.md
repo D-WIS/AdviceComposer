@@ -1,32 +1,92 @@
-﻿# Simulation of the Scheduler Management of Context for the Auto-driller ADCS Standard Function
-Alternates regularly the context for the ADCS Standard Auto-driller function from:
-- RigActionPlanFeature, CuttingsTransportFeature
-- RigActionPlanFeature, DrillStemVibrationFeature
+# DWIS.AdviceComposer.SchedulerROPContext.Test
 
-The period of alternance is defined in `ContextChangePeriod` in the `config.json` file.
+## Overview
+This project simulates scheduler context management for the ADCS Standard Auto-driller function in ROP composition tests.
 
-## Getting started (internal)
-If you have created the docker image yourself, here is the procedured.
+Its main role is to publish `DWISContext.CapabilityPreferences` so `DWIS.AdviceComposer.Service` can select advisor outputs by feature.
 
-The `docker run` command for windows is:
-```
-docker run -d --name schedulerropcontext -v C:\Volumes\DWISSchedulerROPContext:/home dwisadvicecomposerschedulerropcontexttest:latest
-```
-where `C:\Volumes\DWISSchedulerROPContext` is any folder where you would like to access the config.json file that is used to configure
-the application.
+## Context Logic Used by This Test
+The worker monitors `MicroStates` from Blackboard and derives context as follows:
+- If `InsideHardStringer == 2`:
+  - `RigActionPlanFeature`
+  - `DrillStemVibrationFeature`
+- Otherwise:
+  - `RigActionPlanFeature`
+  - `CuttingsTransportFeature`
 
-and the `docker run` command for linux is:
-```
-docker run -d --name schedulerropcontext -v /home/Volumes/DWISSchedulerROPContext:/home dwisadvicecomposerschedulerropcontexttest:latest
-```
-where `/home/Volumes/DWISSchedulerROPContext` is any directory where you would like to access the config.json file that is used to
-configure the application.
+When the evaluated state changes, the worker writes a new serialized `DWISContext` to the Auto-driller context destination.
+
+## Runtime Behavior
+1. Connects to OPC UA Blackboard (`OPCUAURL`).
+2. Subscribes to ADCS standard function descriptions.
+3. Registers a query subscription for `MicroStates`.
+4. Resolves/injects the Auto-driller context destination (and enable function placeholder when available).
+5. On feature-state transition, publishes updated context preferences as JSON.
+
+This makes it possible to switch composition preference between:
+- `RigActionPlan + CuttingsTransport`
+- `RigActionPlan + DrillStemVibration`
 
 ## Configuration
-A configuration file is available in the directory/folder that is connected to the internal `/home` directory. The name of the configuration
-file is `config.json` and is in Json format.
+Configuration file path:
+- local: `../home/config.json`
+- container: `/home/config.json`
 
-The configuration file has the following properties:
-- `LoopDuration` (a TimeSpan, default 1s): this property defines the loop duration of the service, i.e., the time interval used to check if new signals are available.
-- `OPCUAURL` (a string, default "opc.tcp://localhost:48030"): this property defines the `URL` used to connect to the `DWIS Blackboard`
-- `ContextChangePeriod` period for alternating between the two contexts (s).
+If missing, a default file is created.
+
+Example config:
+```json
+{
+  "LoopDuration": "00:00:01",
+  "OPCUAURL": "opc.tcp://localhost:48030",
+  "ContextChangePeriod": "00:00:30"
+}
+```
+
+Parameter meaning:
+- `LoopDuration`: polling/processing interval.
+- `OPCUAURL`: OPC UA server endpoint.
+- `ContextChangePeriod`: retained in config model for scenario control, but current implementation derives switches from microstate values instead of a timer.
+
+## Run Locally
+From repository root:
+```powershell
+dotnet restore .\DWIS.AdviceComposer.sln
+dotnet run --project .\DWIS.AdviceComposer.SchedulerROPContext.Test\DWIS.AdviceComposer.SchedulerROPContext.Test.csproj
+```
+
+## Build and Run with Docker
+Build image:
+```powershell
+docker build -f .\DWIS.AdviceComposer.SchedulerROPContext.Test\Dockerfile -t dwisadvicecomposerschedulerropcontexttest:latest .
+```
+
+Run on Windows:
+```powershell
+docker run -d --name schedulerropcontext -v C:\Volumes\DWISSchedulerROPContext:/home dwisadvicecomposerschedulerropcontexttest:latest
+```
+
+Run on Linux:
+```bash
+docker run -d --name schedulerropcontext -v /home/Volumes/DWISSchedulerROPContext:/home dwisadvicecomposerschedulerropcontexttest:latest
+```
+
+## How to Use in ROP Composition Tests
+1. Start Blackboard OPC UA endpoint.
+2. Start `DWIS.AdviceComposer.Service`.
+3. Start the three advisor test workers:
+   - `DWIS.AdviceComposer.ROPAdvisorWithRigActionPlanFeature.Test`
+   - `DWIS.AdviceComposer.ROPAdvisorWithCuttingsTransportFeature.Test`
+   - `DWIS.AdviceComposer.ROPAdvisorWithDrillStemVibrationFeature.Test`
+4. Start this scheduler context test.
+5. Observe composed outputs from AdviceComposer changing as context preference changes with microstate transitions.
+
+## Validation Checklist
+- Log entries show `context changed to:` with the expected feature set.
+- Blackboard receives serialized `DWISContext` updates when `InsideHardStringer` state toggles.
+- AdviceComposer selection behavior follows the active context preferences.
+
+## Troubleshooting
+- No context updates: verify microstate signal is present and query subscription resolves a live value.
+- Context not reflected in composition: verify AdviceComposer is connected to the same Blackboard endpoint and context semantic destination is correctly injected/resolved.
+- OPC UA write failures: check certificate/trust configuration in `config/Quickstarts.ReferenceClient.Config.xml`.
