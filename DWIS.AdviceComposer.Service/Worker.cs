@@ -1,16 +1,17 @@
+using DWIS.AdviceComposer.Model;
+using DWIS.API.DTO;
 using DWIS.Client.ReferenceImplementation;
 using DWIS.Client.ReferenceImplementation.OPCFoundation;
-using DWIS.API.DTO;
-using DWIS.AdviceComposer.Model;
-using DWIS.RigOS.Common.Model;
 using DWIS.RigOS.Capabilities.Controller.Model;
-using Newtonsoft.Json;
+using DWIS.RigOS.Capabilities.FDIR.Model;
+using DWIS.RigOS.Capabilities.Procedure.Model;
+using DWIS.RigOS.Capabilities.SOE.Model;
+using DWIS.RigOS.Common.Model;
 using DWIS.Scheduler.Model;
+using Newtonsoft.Json;
 using OSDC.DotnetLibraries.General.Common;
 using System.Reflection;
-using DWIS.RigOS.Capabilities.Procedure.Model;
-using DWIS.RigOS.Capabilities.FDIR.Model;
-using DWIS.RigOS.Capabilities.SOE.Model;
+using System.Text.Json;
 
 namespace DWIS.AdviceComposer.Service
 {
@@ -822,7 +823,6 @@ namespace DWIS.AdviceComposer.Service
                             {
                                 SendValue(chosenProcedureFunction.ParametersDestinationQueryResult, chosenProcedureFunction.Parameters);
                             }
-                            break;
                         }
                     }
                 }
@@ -853,7 +853,6 @@ namespace DWIS.AdviceComposer.Service
                             {
                                 SendValue(chosen.ParametersDestinationQueryResult, chosen.Parameters);
                             }
-                            break;
                         }
                     }
                 }
@@ -886,7 +885,6 @@ namespace DWIS.AdviceComposer.Service
                             {
                                 SendValue(combined.ParametersDestinationQueryResult, combined.Parameters);
                             }
-                            break;
                         }
                     }
                 }
@@ -923,7 +921,6 @@ namespace DWIS.AdviceComposer.Service
                                 }
                                 SendControllerFunctionOutputs(chosenControllerFunction, withOnlyLimits, kvp.Key);
                             }
-                            break;
                         }
                     }
                 }
@@ -953,19 +950,38 @@ namespace DWIS.AdviceComposer.Service
             }
             return ok;
         }
+        private bool IsValidJson(string json)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                return true;
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                return false;
+            }
+        }
         private bool SendValue(QueryResult? queryResult, object? value)
         {
             bool ok = false;
             if (_DWISClient != null && queryResult != null && queryResult != null && queryResult.Count > 0 && queryResult[0].Count > 0 && value != null)
             {
                 string? json = null;
-                try
+                if (value is string sval && IsValidJson(sval))
                 {
-                    json = JsonConvert.SerializeObject(value);
+                    json = sval;
                 }
-                catch (Exception e)
+                if (string.IsNullOrEmpty(json))
                 {
-                    _logger?.LogError(e.ToString());
+                    try
+                    {
+                        json = System.Text.Json.JsonSerializer.Serialize(value);
+                    }
+                    catch (Exception e)
+                    {
+                        _logger?.LogError(e.ToString());
+                    }
                 }
                 NodeIdentifier id = queryResult[0][0];
                 if (!string.IsNullOrEmpty(json) && id != null && !string.IsNullOrEmpty(id.ID) && !string.IsNullOrEmpty(id.NameSpace))
