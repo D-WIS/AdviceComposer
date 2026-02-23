@@ -470,13 +470,21 @@ namespace DWIS.AdviceComposer.Service
         {
             PeriodicTimer timer = new PeriodicTimer(_loopSpan);
 
+            bool looping = false;
+
+
             while (await timer.WaitForNextTickAsync(cancellationToken))
             {
-                ManageActivableFunctionList();
-                ManageControllerFunctionsSetPointsLimitsAndParameters();
-                ManageProcedureParameters();
-                ManageFaultDetectionIsolationAndRecoveryParameters();
-                ManageSafeOperatingEnvelopeParameters();
+                if (!looping)//if still in the loop, continue
+                {
+                    looping = true;
+                    ManageActivableFunctionList();
+                    ManageControllerFunctionsSetPointsLimitsAndParameters();
+                    ManageProcedureParameters();
+                    ManageFaultDetectionIsolationAndRecoveryParameters();
+                    ManageSafeOperatingEnvelopeParameters();
+                    looping = false;
+                }
             }
         }
 
