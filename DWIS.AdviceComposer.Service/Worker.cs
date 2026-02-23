@@ -1193,9 +1193,8 @@ namespace DWIS.AdviceComposer.Service
                                 }
                                 else
                                 {
-                                    if (src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation != null && !Numeric.EQ(src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation, 0))
-                                    {
-                                        
+                                    if (src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation != null && Numeric.IsDefined(src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation) && !Numeric.EQ(src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation, 0))
+                                    {                                        
                                         if (src.ControllerDatas[i].ControllerLimitDatas[j].IsMin)
                                         {
                                             dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation = Math.Max(dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation!.Value, src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation!.Value);
@@ -2245,7 +2244,7 @@ namespace DWIS.AdviceComposer.Service
                         if (cf != null && cf.ControllerDatas != null && cf.ControllerDatas.Count > i && cf.ControllerDatas[i] != null)
                         {
                             object? val = SearchValue(setPointSource.LiveValues, res[0], ControllerObsolescence);
-                            if (val != null && val is double dval)
+                            if (val != null && val is double dval && Numeric.IsDefined((double)dval))
                             {
                                 cf.ControllerDatas[i].SetPointRecommendation = dval;
                                 cf.ControllerDatas[i].MeasuredValue = mVal;
@@ -2308,7 +2307,7 @@ namespace DWIS.AdviceComposer.Service
                             cf.ControllerDatas[i].ControllerLimitDatas[j] != null)
                         {
                             object? val = SearchValue(maxLimitSource.LiveValues, res[0], ControllerObsolescence);
-                            if (val != null && val is double dval)
+                            if (val != null && val is double dval && Numeric.IsDefined((double)dval))
                             {
                                 cf.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation = dval;
                                 cf.ControllerDatas[i].ControllerLimitDatas[j].LimitRateOfChange = mROC;
