@@ -1032,16 +1032,19 @@ namespace DWIS.AdviceComposer.Service
                             {
                                 if (c0.SetPointRecommendation != null && c1.SetPointRecommendation != null && c1.SetPointRateOfChange != null)
                                 {
-                                    double xlr = c1.SetPointRecommendation.Value;
-                                    double xlci = c0.SetPointRecommendation.Value;
-                                    double x_dot = c1.SetPointRateOfChange.Value;
-                                    double xlci1 = xlr;
-                                    if (!Numeric.EQ(xlr, xlci) && !Numeric.EQ(deltat, 0))
+                                    if (Numeric.IsDefined(c0.SetPointRecommendation.Value))
                                     {
-                                        double sgn = (xlr - xlci) / Math.Abs(xlr - xlci);
-                                        xlci1 = xlci + sgn * Math.Min(Math.Abs(x_dot), Math.Abs(xlr - xlci) / deltat) * deltat;
+                                        double xlr = c1.SetPointRecommendation.Value;
+                                        double xlci = c0.SetPointRecommendation.Value;
+                                        double x_dot = c1.SetPointRateOfChange.Value;
+                                        double xlci1 = xlr;
+                                        if (!Numeric.EQ(xlr, xlci) && !Numeric.EQ(deltat, 0))
+                                        {
+                                            double sgn = (xlr - xlci) / Math.Abs(xlr - xlci);
+                                            xlci1 = xlci + sgn * Math.Min(Math.Abs(x_dot), Math.Abs(xlr - xlci) / deltat) * deltat;
+                                        }
+                                        c1.SetPointRecommendation = xlci1;
                                     }
-                                    c1.SetPointRecommendation = xlci1;
                                 }
                                 if (c0.ControllerLimitDatas != null && c1.ControllerLimitDatas != null && c0.ControllerLimitDatas.Count == c1.ControllerLimitDatas.Count)
                                 {
@@ -1051,16 +1054,19 @@ namespace DWIS.AdviceComposer.Service
                                         var l0 = c0.ControllerLimitDatas[j];
                                         if (l0 != null && l1 != null && l0.LimitRecommendation != null && l1.LimitRecommendation != null && l1.LimitRateOfChange != null)
                                         {
-                                            double xlr = l1.LimitRecommendation.Value;
-                                            double xlci = l0.LimitRecommendation.Value;
-                                            double x_dot = l1.LimitRateOfChange.Value;
-                                            double xlci1 = xlr;
-                                            if (!Numeric.EQ(xlr, xlci) && !Numeric.EQ(deltat, 0))
+                                            if (Numeric.IsDefined(l0.LimitRecommendation.Value))
                                             {
-                                                double sgn = (xlr - xlci) / Math.Abs(xlr - xlci);
-                                                xlci1 = xlci + sgn * Math.Min(Math.Abs(x_dot), Math.Abs(xlr - xlci) / deltat) * deltat;
+                                                double xlr = l1.LimitRecommendation.Value;
+                                                double xlci = l0.LimitRecommendation.Value;
+                                                double x_dot = l1.LimitRateOfChange.Value;
+                                                double xlci1 = xlr;
+                                                if (!Numeric.EQ(xlr, xlci) && !Numeric.EQ(deltat, 0))
+                                                {
+                                                    double sgn = (xlr - xlci) / Math.Abs(xlr - xlci);
+                                                    xlci1 = xlci + sgn * Math.Min(Math.Abs(x_dot), Math.Abs(xlr - xlci) / deltat) * deltat;
+                                                }
+                                                l1.LimitRecommendation = xlci1;
                                             }
-                                            l1.LimitRecommendation = xlci1;
                                         }
                                     }
                                 }
