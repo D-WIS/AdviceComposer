@@ -216,7 +216,7 @@ namespace DWIS.AdviceComposer.Service
                                 LiveValue liveValue = new(node.NameSpace, node.ID, null);
                                 entry.LiveValues.Add(guid, liveValue);
                                 Entry userDataEntry = new Entry();
-                                _DWISClient.Subscribe(entry,(sd, dc) => CallbackOPCUA(sd, dc, guid), new (string, string, object)[] { new(liveValue.ns, liveValue.id, guid) });
+                                _DWISClient.Subscribe(entry, (sd, dc) => CallbackOPCUA(sd, dc, guid), new (string, string, object)[] { new(liveValue.ns, liveValue.id, guid) });
                                 Thread.Sleep(100); // to avoid too many subscription at the same time, which can cause the OPC-UA server to fail. This is a workaround, a more robust solution should be implemented in case of a large number of subscriptions.
                             }
                         }
@@ -238,8 +238,8 @@ namespace DWIS.AdviceComposer.Service
                             entry.LiveValues[id].val = dataChange.Value;
                             entry.LiveValues[id].Timestamp = DateTime.UtcNow;
                         }
-                    }  
-                    else 
+                    }
+                    else
                     {
                     }
                 }
@@ -515,14 +515,14 @@ namespace DWIS.AdviceComposer.Service
                                             Formatting = Formatting.Indented
                                         };
 
-                                        ActivableFunction? activableFunction = JsonConvert.DeserializeObject<ActivableFunction>(json, settings);                                                                            
-                                      
+                                        ActivableFunction? activableFunction = JsonConvert.DeserializeObject<ActivableFunction>(json, settings);
+
 
                                         if (activableFunction != null && !string.IsNullOrEmpty(activableFunction.Name))
                                         {
-                                            activableFunction.FillInSparqlQueriesAndManifests(); 
+                                            activableFunction.FillInSparqlQueriesAndManifests();
                                             activableFunction.FillInAlternateSparqlQueries();
-                                            
+
                                             if (activableFunction is ControllerFunction controllerFunction)
                                             {
                                                 ManageControllerFunction(controllerFunction, activableFunction);
@@ -602,7 +602,7 @@ namespace DWIS.AdviceComposer.Service
                         procedureFunctionData.ParametersDestinationID = Guid.NewGuid();
                         PlaceHolders.Add(procedureFunctionData.ParametersDestinationID, result);
                     }
-                }                
+                }
             }
         }
 
@@ -814,6 +814,7 @@ namespace DWIS.AdviceComposer.Service
                 {
                     if (kvp.Value.src != null)
                     {
+                        List<Vocabulary.Schemas.Nouns.Enum> features = new List<Vocabulary.Schemas.Nouns.Enum>();
                         Entry? entryContext = null;
                         if (kvp.Value.src.ContextID != Guid.Empty)
                         {
@@ -823,14 +824,14 @@ namespace DWIS.AdviceComposer.Service
                             entryContext.LiveValues != null &&
                             entryContext.LiveValues.Count > 0)
                         {
-                            TryGetContextFeatures(entryContext, ProcedureObsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features);
-                            Dictionary<string, ProcedureData> availableDatas = new Dictionary<string, ProcedureData>();
-                            ManageParameters(kvp.Value.src, availableDatas);
-                            ProcedureData? chosenProcedureFunction = ChooseProcedureFunction(availableDatas, features);
-                            if (chosenProcedureFunction != null && chosenProcedureFunction.Parameters != null && chosenProcedureFunction.ParametersDestinationQueryResult != null)
-                            {
-                                SendValue(chosenProcedureFunction.ParametersDestinationQueryResult, chosenProcedureFunction.Parameters);
-                            }
+                            TryGetContextFeatures(entryContext, ProcedureObsolescence, out features);
+                        }
+                        Dictionary<string, ProcedureData> availableDatas = new Dictionary<string, ProcedureData>();
+                        ManageParameters(kvp.Value.src, availableDatas);
+                        ProcedureData? chosenProcedureFunction = ChooseProcedureFunction(availableDatas, features);
+                        if (chosenProcedureFunction != null && chosenProcedureFunction.Parameters != null && chosenProcedureFunction.ParametersDestinationQueryResult != null)
+                        {
+                            SendValue(chosenProcedureFunction.ParametersDestinationQueryResult, chosenProcedureFunction.Parameters);
                         }
                     }
                 }
@@ -844,6 +845,7 @@ namespace DWIS.AdviceComposer.Service
                 {
                     if (kvp.Value.src != null)
                     {
+                        List<Vocabulary.Schemas.Nouns.Enum> features = new List<Vocabulary.Schemas.Nouns.Enum>();
                         Entry? entryContext = null;
                         if (kvp.Value.src.ContextID != Guid.Empty)
                         {
@@ -853,14 +855,14 @@ namespace DWIS.AdviceComposer.Service
                             entryContext.LiveValues != null &&
                             entryContext.LiveValues.Count > 0)
                         {
-                            TryGetContextFeatures(entryContext, FDIRObolescence, out List<Vocabulary.Schemas.Nouns.Enum> features);
-                            Dictionary<string, FaultDetectionIsolationAndRecoveryData> availableDatas = new Dictionary<string, FaultDetectionIsolationAndRecoveryData>();
-                            ManageParameters(kvp.Value.src, availableDatas);
-                            FaultDetectionIsolationAndRecoveryData? chosen = ChooseFaultDetectionIsolationAndRecoveryFunction(availableDatas, features);
-                            if (chosen != null && chosen.Parameters != null && chosen.ParametersDestinationQueryResult != null)
-                            {
-                                SendValue(chosen.ParametersDestinationQueryResult, chosen.Parameters);
-                            }
+                            TryGetContextFeatures(entryContext, FDIRObolescence, out features);
+                        }
+                        Dictionary<string, FaultDetectionIsolationAndRecoveryData> availableDatas = new Dictionary<string, FaultDetectionIsolationAndRecoveryData>();
+                        ManageParameters(kvp.Value.src, availableDatas);
+                        FaultDetectionIsolationAndRecoveryData? chosen = ChooseFaultDetectionIsolationAndRecoveryFunction(availableDatas, features);
+                        if (chosen != null && chosen.Parameters != null && chosen.ParametersDestinationQueryResult != null)
+                        {
+                            SendValue(chosen.ParametersDestinationQueryResult, chosen.Parameters);
                         }
                     }
                 }
@@ -874,6 +876,7 @@ namespace DWIS.AdviceComposer.Service
                 {
                     if (kvp.Value.src != null)
                     {
+                        List<Vocabulary.Schemas.Nouns.Enum> features = new List<Vocabulary.Schemas.Nouns.Enum>();
                         Entry? entryContext = null;
                         if (kvp.Value.src.ContextID != Guid.Empty)
                         {
@@ -883,16 +886,16 @@ namespace DWIS.AdviceComposer.Service
                             entryContext.LiveValues != null &&
                             entryContext.LiveValues.Count > 0)
                         {
-                            TryGetContextFeatures(entryContext, SOEObsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features);
-                            Dictionary<string, SafeOperatingEnvelopeData> availableDatas = new Dictionary<string, SafeOperatingEnvelopeData>();
-                            ManageParameters(kvp.Value.src, availableDatas);
-                            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, SafeOperatingEnvelopeData data)> candidates = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, SafeOperatingEnvelopeData data)>();
-                            SelectSafeOperatingEnvelopeFunctionData(availableDatas, features, candidates);
-                            SafeOperatingEnvelopeData? combined = CombineSafeOperatingEnvelopes(candidates);
-                            if (combined != null && combined.Parameters != null && combined.ParametersDestinationQueryResult != null)
-                            {
-                                SendValue(combined.ParametersDestinationQueryResult, combined.Parameters);
-                            }
+                            TryGetContextFeatures(entryContext, SOEObsolescence, out features);
+                        }
+                        Dictionary<string, SafeOperatingEnvelopeData> availableDatas = new Dictionary<string, SafeOperatingEnvelopeData>();
+                        ManageParameters(kvp.Value.src, availableDatas);
+                        List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, SafeOperatingEnvelopeData data)> candidates = new List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, SafeOperatingEnvelopeData data)>();
+                        SelectSafeOperatingEnvelopeFunctionData(availableDatas, features, candidates);
+                        SafeOperatingEnvelopeData? combined = CombineSafeOperatingEnvelopes(candidates);
+                        if (combined != null && combined.Parameters != null && combined.ParametersDestinationQueryResult != null)
+                        {
+                            SendValue(combined.ParametersDestinationQueryResult, combined.Parameters);
                         }
                     }
                 }
@@ -906,6 +909,7 @@ namespace DWIS.AdviceComposer.Service
                 {
                     if (kvp.Value.src != null)
                     {
+                        List<Vocabulary.Schemas.Nouns.Enum> features = new List<Vocabulary.Schemas.Nouns.Enum>();
                         Entry? entryContext = null;
                         if (kvp.Value.src.ContextID != Guid.Empty)
                         {
@@ -915,20 +919,20 @@ namespace DWIS.AdviceComposer.Service
                             entryContext.LiveValues != null &&
                             entryContext.LiveValues.Count > 0)
                         {
-                            TryGetContextFeatures(entryContext, ControllerObsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features);
-                            Dictionary<string, ControllerFunctionData> availableDatas = new Dictionary<string, ControllerFunctionData>();
-                            ManageParameters(kvp.Value.src, availableDatas);
-                            FindAvailableDatas(availableDatas, kvp.Value.src.controllerDatas, kvp.Value.src);
-                            List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withOnlyLimits;
-                            ControllerFunctionData? chosenControllerFunction = ChooseControllerFunction(availableDatas, features, out withOnlyLimits);
-                            if (chosenControllerFunction != null)
+                            TryGetContextFeatures(entryContext, ControllerObsolescence, out features);
+                        }
+                        Dictionary<string, ControllerFunctionData> availableDatas = new Dictionary<string, ControllerFunctionData>();
+                        ManageParameters(kvp.Value.src, availableDatas);
+                        FindAvailableDatas(availableDatas, kvp.Value.src.controllerDatas, kvp.Value.src);
+                        List<(List<Vocabulary.Schemas.Nouns.Enum> features, int, ControllerFunctionData data)> withOnlyLimits;
+                        ControllerFunctionData? chosenControllerFunction = ChooseControllerFunction(availableDatas, features, out withOnlyLimits);
+                        if (chosenControllerFunction != null)
+                        {
+                            if (chosenControllerFunction.Parameters != null && chosenControllerFunction.ParametersDestinationQueryResult != null)
                             {
-                                if (chosenControllerFunction.Parameters != null && chosenControllerFunction.ParametersDestinationQueryResult != null)
-                                {
-                                    SendValue(chosenControllerFunction.ParametersDestinationQueryResult, chosenControllerFunction.Parameters);
-                                }
-                                SendControllerFunctionOutputs(chosenControllerFunction, withOnlyLimits, kvp.Key);
+                                SendValue(chosenControllerFunction.ParametersDestinationQueryResult, chosenControllerFunction.Parameters);
                             }
+                            SendControllerFunctionOutputs(chosenControllerFunction, withOnlyLimits, kvp.Key);
                         }
                     }
                 }
@@ -1032,7 +1036,7 @@ namespace DWIS.AdviceComposer.Service
                                     double xlci = c0.SetPointRecommendation.Value;
                                     double x_dot = c1.SetPointRateOfChange.Value;
                                     double xlci1 = xlr;
-                                    if (!Numeric.EQ(xlr, xlci) && !Numeric.EQ(deltat, 0)) 
+                                    if (!Numeric.EQ(xlr, xlci) && !Numeric.EQ(deltat, 0))
                                     {
                                         double sgn = (xlr - xlci) / Math.Abs(xlr - xlci);
                                         xlci1 = xlci + sgn * Math.Min(Math.Abs(x_dot), Math.Abs(xlr - xlci) / deltat) * deltat;
@@ -1045,7 +1049,7 @@ namespace DWIS.AdviceComposer.Service
                                     {
                                         var l1 = c1.ControllerLimitDatas[j];
                                         var l0 = c0.ControllerLimitDatas[j];
-                                        if (l0 != null && l1 != null && l0.LimitRecommendation != null && l1.LimitRecommendation != null && l1.LimitRateOfChange != null) 
+                                        if (l0 != null && l1 != null && l0.LimitRecommendation != null && l1.LimitRecommendation != null && l1.LimitRateOfChange != null)
                                         {
                                             double xlr = l1.LimitRecommendation.Value;
                                             double xlci = l0.LimitRecommendation.Value;
@@ -1152,7 +1156,7 @@ namespace DWIS.AdviceComposer.Service
                         }
                         else
                         {
-                            onlyLimits.Add(new (res.features, 0, res.data));
+                            onlyLimits.Add(new(res.features, 0, res.data));
                             onlyLimits = onlyLimits.OrderByDescending(x => x.features.Count).ToList();
                         }
                     }
@@ -1187,18 +1191,18 @@ namespace DWIS.AdviceComposer.Service
                         {
                             for (int j = 0; j < dest.ControllerDatas[i].ControllerLimitDatas.Count; j++)
                             {
-                                if (dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation == null 
-                                    && Numeric.IsDefined(src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation) 
+                                if (dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation == null
+                                    && Numeric.IsDefined(src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation)
                                     && !Numeric.EQ(src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation, 0))
                                 {
                                     dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation = src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation;
                                 }
                                 else
                                 {
-                                    if (src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation != null 
-                                        && Numeric.IsDefined(src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation) 
+                                    if (src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation != null
+                                        && Numeric.IsDefined(src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation)
                                         && !Numeric.EQ(src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation, 0))
-                                    {                                        
+                                    {
                                         if (src.ControllerDatas[i].ControllerLimitDatas[j].IsMin)
                                         {
                                             dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation = Math.Max(dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation!.Value, src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation!.Value);
@@ -1207,7 +1211,7 @@ namespace DWIS.AdviceComposer.Service
                                         {
                                             dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation = Math.Min(dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation!.Value, src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation!.Value);
                                         }
-                                    } 
+                                    }
                                 }
                             }
                         }
@@ -1277,7 +1281,7 @@ namespace DWIS.AdviceComposer.Service
                     {
                         if (controller.Parameters != null && string.IsNullOrEmpty(controller.Parameters.SparQLQuery))
                         {
-                            
+
                         }
 
                         ControlData controllerData = new ControlData();
@@ -2273,8 +2277,8 @@ namespace DWIS.AdviceComposer.Service
             Entry? maxLimitSource = GetEntry(limitData.MaxLimitSourceID);
             Entry? maxRateOfChange = GetEntry(limitData.MaxRateOfChangeID);
             QueryResult? maxLimitDestination = GetQueryResult(limitData.MaxLimitDestinationID);
-            if (maxLimitSource != null && 
-                maxLimitSource.Results != null && 
+            if (maxLimitSource != null &&
+                maxLimitSource.Results != null &&
                 maxLimitSource.LiveValues != null &&
                 maxRateOfChange != null &&
                 maxRateOfChange.LiveValues != null &&
@@ -2286,7 +2290,7 @@ namespace DWIS.AdviceComposer.Service
             {
                 foreach (var res in maxLimitSource.Results)
                 {
-                    if (res != null && 
+                    if (res != null &&
                         res.Count >= 3 &&
                         res[0] != null &&
                         res[1] != null &&
@@ -2303,9 +2307,9 @@ namespace DWIS.AdviceComposer.Service
                         var cf = availableDatas[res[1].ID];
                         AddFeature(cf, f);
                         if (cf != null &&
-                            cf.ControllerDatas != null && 
-                            cf.ControllerDatas.Count > i && 
-                            cf.ControllerDatas[i] != null && 
+                            cf.ControllerDatas != null &&
+                            cf.ControllerDatas.Count > i &&
+                            cf.ControllerDatas[i] != null &&
                             cf.ControllerDatas[i].ControllerLimitDatas != null &&
                             cf.ControllerDatas[i].ControllerLimitDatas.Count > j &&
                             cf.ControllerDatas[i].ControllerLimitDatas[j] != null)
