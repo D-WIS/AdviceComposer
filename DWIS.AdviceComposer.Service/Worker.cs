@@ -1187,13 +1187,17 @@ namespace DWIS.AdviceComposer.Service
                         {
                             for (int j = 0; j < dest.ControllerDatas[i].ControllerLimitDatas.Count; j++)
                             {
-                                if (dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation == null)
+                                if (dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation == null 
+                                    && Numeric.IsDefined(src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation) 
+                                    && !Numeric.EQ(src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation, 0))
                                 {
                                     dest.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation = src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation;
                                 }
                                 else
                                 {
-                                    if (src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation != null && Numeric.IsDefined(src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation) && !Numeric.EQ(src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation, 0))
+                                    if (src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation != null 
+                                        && Numeric.IsDefined(src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation) 
+                                        && !Numeric.EQ(src.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation, 0))
                                     {                                        
                                         if (src.ControllerDatas[i].ControllerLimitDatas[j].IsMin)
                                         {
