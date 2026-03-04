@@ -725,11 +725,27 @@ namespace DWIS.AdviceComposer.Service
             ControlFunctionData controlFunctionData = new ControlFunctionData();
             controlFunctionData.ControllerFunction = controllerFunction;
             ControlFunctionDictionary.Add(controlFunctionID, new(controlFunctionData, null, DateTime.MinValue));
-
+            if (controllerFunction.ContextSemanticInfo != null)
+            {
+                if (string.IsNullOrEmpty(controllerFunction.ContextSemanticInfo.SparQLQuery) || controllerFunction.ContextSemanticInfo.SparQLVariables == null)
+                {
+                    controllerFunction.FillInSparqlQueriesAndManifests();
+                    controllerFunction.FillInAlternateSparqlQueries();
+                }
+            }
             RegisterControllerContext(controllerFunction, controlFunctionData);
+            if (controllerFunction.Parameters != null)
+            {
+                if (string.IsNullOrEmpty(controllerFunction.Parameters.SparQLQuery) || controllerFunction.Parameters.SparQLVariables == null)
+                {
+                    controllerFunction.FillInSparqlQueriesAndManifests();
+                    controllerFunction.FillInAlternateSparqlQueries();
+                }
+            }
             RegisterControllerParameters(controllerFunction, controlFunctionData);
             RegisterControllers(controllerFunction, controlFunctionData);
         }
+
         private void ManageLimits(Dictionary<string, ControllerLimit>? controllerLimits, ControlData controllerData)
         {
             if (controllerLimits != null && controllerData != null)
@@ -1287,14 +1303,15 @@ namespace DWIS.AdviceComposer.Service
                     {
                         if (controller.Parameters != null && string.IsNullOrEmpty(controller.Parameters.SparQLQuery))
                         {
-
+                            controller.FillInSparqlQueries();
+                            controller.FillInManifests();
+                            controller.FillInAlternateSparqlQueries();
                         }
 
                         ControlData controllerData = new ControlData();
                         controlFunctionData.controllerDatas.Add(controllerData);
                         RegisterControllerParameters(controller, controllerData);
-                        RegisterControllerSetPoints(controller, controllerData);
-                        RegisterControllerLimits(controller, controllerData);
+                        RegisterControllerSetPointsAndLimits(controller, controllerData);
                     }
                 }
             }
@@ -1320,7 +1337,7 @@ namespace DWIS.AdviceComposer.Service
                 }
             }
         }
-        private void RegisterControllerSetPoints(Controller controller, ControlData controllerData)
+        private void RegisterControllerSetPointsAndLimits(Controller controller, ControlData controllerData)
         {
             if (controller is ControllerWithControlledVariable controllerWithControlledVariable)
             {
@@ -1361,22 +1378,26 @@ namespace DWIS.AdviceComposer.Service
                     controllerData.MaxRateOfChangeID = Guid.NewGuid();
                     RegisterQuery(controllerWithControlledVariable.SetPointMaxRateOfChange, RegisteredQueries, controllerData.MaxRateOfChangeID);
                 }
+                if (controller is ControllerWithLimits controllerWithLimits)
+                {
+                    if (controllerWithLimits.ControllerLimits is not null)
+                    {
+                        ManageLimits(controllerWithLimits.ControllerLimits, controllerData);
+                    }
+                }
             }
-        }
-        private void RegisterControllerLimits(Controller controller, ControlData controllerData)
-        {
-            if (controller is ControllerWithOnlyLimits controllerWithOnlyLimits)
+            else if (controller is ControllerWithOnlyLimits controllerWithOnlyLimits)
             {
-                if (controllerWithOnlyLimits.ControllerLimits != null)
+                controllerWithOnlyLimits.FillInSparqlQueries();
+                controllerWithOnlyLimits.FillInManifests();
+                controllerWithOnlyLimits.FillInAlternateSparqlQueries();
+                if (controllerWithOnlyLimits.ControllerLimits is not null)
                 {
                     ManageLimits(controllerWithOnlyLimits.ControllerLimits, controllerData);
                 }
             }
-            else if (controller is ControllerWithLimits controllerWithLimits)
-            {
-                ManageLimits(controllerWithLimits.ControllerLimits, controllerData);
-            }
         }
+
         private void TryGetContextFeatures(Entry entryContext, TimeSpan obsolescence, out List<Vocabulary.Schemas.Nouns.Enum> features)
         {
             features = new List<Vocabulary.Schemas.Nouns.Enum>();
@@ -2258,7 +2279,7 @@ namespace DWIS.AdviceComposer.Service
                         if (cf != null && cf.ControllerDatas != null && cf.ControllerDatas.Count > i && cf.ControllerDatas[i] != null)
                         {
                             object? val = SearchValue(setPointSource.LiveValues, res[0], ControllerObsolescence);
-                            if (val != null && val is double dval && Numeric.IsDefined((double)dval))
+                            if (val != null && val is double dval && Numeric.IsDefined(dval) && !Numeric.EQ(dval, 0))
                             {
                                 cf.ControllerDatas[i].SetPointRecommendation = dval;
                                 cf.ControllerDatas[i].MeasuredValue = mVal;
@@ -2321,7 +2342,7 @@ namespace DWIS.AdviceComposer.Service
                             cf.ControllerDatas[i].ControllerLimitDatas[j] != null)
                         {
                             object? val = SearchValue(maxLimitSource.LiveValues, res[0], ControllerObsolescence);
-                            if (val != null && val is double dval && Numeric.IsDefined((double)dval))
+                            if (val != null && val is double dval && Numeric.IsDefined(dval) && !Numeric.EQ(dval, 0))
                             {
                                 cf.ControllerDatas[i].ControllerLimitDatas[j].LimitRecommendation = dval;
                                 cf.ControllerDatas[i].ControllerLimitDatas[j].LimitRateOfChange = mROC;
